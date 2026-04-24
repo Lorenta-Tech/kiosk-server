@@ -11,6 +11,7 @@ import (
 
 	"github.com/Lorenta-Tech/kiosk-server/internal/env"
 	"github.com/Lorenta-Tech/kiosk-server/pkg/db"
+	"github.com/Lorenta-Tech/kiosk-server/pkg/s3"
 	"github.com/Lorenta-Tech/kiosk-server/pkg/utils"
 	_ "github.com/joho/godotenv/autoload"
 )
@@ -18,6 +19,7 @@ import (
 type Application struct {
 	DB     *sql.DB
 	Logger *slog.Logger
+	S3     *s3.Client
 }
 
 func NewApplication() (*Application, error) {
@@ -51,9 +53,17 @@ func NewApplication() (*Application, error) {
 		}
 	}
 
+	s3Client, err := s3.Connect()
+	if err != nil {
+		return nil, fmt.Errorf("s3 unreachable: %w", err)
+	}
+
+	logger.Info("s3 client initialized", "bucket", env.GetString("BUCKET", "aiet-printflow-upload-prod"))
+
 	app := &Application{
 		DB:     pgdb,
 		Logger: logger,
+		S3:     s3Client,
 	}
 
 	return app, nil
