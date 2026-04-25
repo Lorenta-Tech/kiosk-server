@@ -35,6 +35,7 @@ func NewApplication() (*Application, error) {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
+	//database
 	pgdb, err := db.Connect()
 	if err != nil {
 		return nil, err
@@ -53,6 +54,7 @@ func NewApplication() (*Application, error) {
 		}
 	}
 
+	//s3 connection
 	s3Client, err := s3.Connect()
 	if err != nil {
 		return nil, fmt.Errorf("s3 unreachable: %w", err)

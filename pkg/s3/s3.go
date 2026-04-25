@@ -33,8 +33,11 @@ func Connect() (*Client, error) {
 		bucket    = env.GetString("BUCKET", "")
 	)
 
+	ctx,cancel := context.WithTimeout(context.Background(),time.Second*30)
+	defer cancel()
+
 	cfg, err := awsconfig.LoadDefaultConfig(
-		context.Background(),
+		ctx,
 		awsconfig.WithRegion(region),
 		awsconfig.WithCredentialsProvider(
 			credentials.NewStaticCredentialsProvider(accessKey, secretKey, ""),
@@ -53,14 +56,17 @@ func Connect() (*Client, error) {
 	}, nil
 }
 
+//uploads/staging/{userID}/{sessionID}/{fileID}.pdf
 func StagingKey(userID, sessionID, fileID string) string {
 	return fmt.Sprintf("%s/%s/%s/%s.pdf", stagingPrefix, userID, sessionID, fileID)
 }
 
+//uploads/final/{userID}/{sessionID}/{fileID}.pdf
 func FinalKey(stagingkey string) string {
 	return strings.Replace(stagingkey, stagingPrefix+"/", finalPrefix+"/", 1)
 }
 
+//generates staging presigned url
 func (c *Client) PresignPut(ctx context.Context, stagingKey string) (string, error) {
 	req, err := c.presign.PresignPutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(c.bucket),
@@ -74,6 +80,7 @@ func (c *Client) PresignPut(ctx context.Context, stagingKey string) (string, err
 	return req.URL, nil
 }
 
+//checks the fileExists used during confirm step
 func (c *Client) FileExists(ctx context.Context, key string) (bool, error) {
 	_, err := c.s3.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(c.bucket),
@@ -91,6 +98,11 @@ func (c *Client) FileExists(ctx context.Context, key string) (bool, error) {
 	return true, nil
 }
 
+/*
+PromoteFile copies a file from staging to final, then deletes from staging.
+This is "commit" step that runs on payment webhook verified.
+returns the final key on successfull payments
+*/
 func (c *Client) PromoteFile(ctx context.Context, stagingKey string) (string, error) {
 	finalKey := FinalKey(stagingKey)
 	copySource := fmt.Sprintf("%s/%s", c.bucket, stagingKey)
@@ -109,12 +121,13 @@ func (c *Client) PromoteFile(ctx context.Context, stagingKey string) (string, er
 		Key:    aws.String(stagingKey),
 	})
 	if err != nil {
+		//file is alredy promoted but fails to delete , No worries Lifecylcle rule will applied here staging files gets cleans within 24h.
 		return finalKey, fmt.Errorf("promoted but failed to delete staging %s: %w", stagingKey, err)
 	}
 
 	return finalKey, nil
 }
-
+//extra function just used when need to mannual cleanup.
 func (c *Client) DeleteStagingFile(ctx context.Context, stagingKey string) error {
 	_, err := c.s3.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(c.bucket),
