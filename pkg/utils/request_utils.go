@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/Lorenta-Tech/kiosk-server/pkg/apperror"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -29,4 +30,12 @@ func ReadParamID(r *http.Request) (string, error) {
 		return "", errors.New("invalid url param")
 	}
 	return id, nil
+}
+
+func DecodeJSON[T any](r *http.Request) (T, error) {
+	var v T
+	if err := json.NewDecoder(r.Body).Decode(&v); err != nil {
+		return v, apperror.BadRequest("invalid_json", "request body is not valid JSON")
+	}
+	return v, nil
 }

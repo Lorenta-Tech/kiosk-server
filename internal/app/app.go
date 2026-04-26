@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/Lorenta-Tech/kiosk-server/internal/env"
+	"github.com/Lorenta-Tech/kiosk-server/internal/handler"
+	"github.com/Lorenta-Tech/kiosk-server/internal/repository"
+	"github.com/Lorenta-Tech/kiosk-server/internal/service"
 	"github.com/Lorenta-Tech/kiosk-server/pkg/db"
 	"github.com/Lorenta-Tech/kiosk-server/pkg/s3"
 	"github.com/Lorenta-Tech/kiosk-server/pkg/utils"
@@ -17,9 +20,10 @@ import (
 )
 
 type Application struct {
-	DB     *sql.DB
-	Logger *slog.Logger
-	S3     *s3.Client
+	DB          *sql.DB
+	Logger      *slog.Logger
+	S3          *s3.Client
+	FileHandler *handler.FileHandler
 }
 
 func NewApplication() (*Application, error) {
@@ -62,10 +66,20 @@ func NewApplication() (*Application, error) {
 
 	logger.Info("s3 client initialized", "bucket", env.GetString("BUCKET", "aiet-printflow-upload-prod"))
 
+	//repositories
+	filerepo := repository.NewFileRepository(pgdb)
+
+	//services
+	fileservice := service.NewFileService(filerepo,s3Client,pgdb,logger)
+
+	//handlers
+	fileHandler := handler.NewFileHandler(fileservice, logger)
+
 	app := &Application{
 		DB:     pgdb,
 		Logger: logger,
 		S3:     s3Client,
+		FileHandler: fileHandler,
 	}
 
 	return app, nil
