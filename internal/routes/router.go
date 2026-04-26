@@ -43,5 +43,6 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 func fileRoutes(app *app.Application,r chi.Router){
 	r.Route("/files",func(r chi.Router) {
 		r.Post("/upload/init",app.FileHandler.HandleInitFileUpload)
+		r.Post("/upload/confirm",app.FileHandler.HandleConfirmFileUpload)
 	})
 }

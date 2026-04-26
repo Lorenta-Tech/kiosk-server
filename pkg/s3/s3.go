@@ -2,6 +2,7 @@ package s3
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -11,6 +12,8 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 )
 
 const (
@@ -33,7 +36,7 @@ func Connect() (*Client, error) {
 		bucket    = env.GetString("BUCKET", "")
 	)
 
-	ctx,cancel := context.WithTimeout(context.Background(),time.Second*30)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
 	cfg, err := awsconfig.LoadDefaultConfig(
@@ -56,17 +59,17 @@ func Connect() (*Client, error) {
 	}, nil
 }
 
-//uploads/staging/{userID}/{sessionID}/{fileID}.pdf
+// uploads/staging/{userID}/{sessionID}/{fileID}.pdf
 func StagingKey(userID, sessionID, fileID string) string {
 	return fmt.Sprintf("%s/%s/%s/%s.pdf", stagingPrefix, userID, sessionID, fileID)
 }
 
-//uploads/final/{userID}/{sessionID}/{fileID}.pdf
+// uploads/final/{userID}/{sessionID}/{fileID}.pdf
 func FinalKey(stagingkey string) string {
 	return strings.Replace(stagingkey, stagingPrefix+"/", finalPrefix+"/", 1)
 }
 
-//generates staging presigned url
+// generates staging presigned url
 func (c *Client) PresignPut(ctx context.Context, stagingKey string) (string, error) {
 	req, err := c.presign.PresignPutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(c.bucket),
@@ -81,20 +84,33 @@ func (c *Client) PresignPut(ctx context.Context, stagingKey string) (string, err
 }
 
 //checks the fileExists used during confirm step
+
 func (c *Client) FileExists(ctx context.Context, key string) (bool, error) {
+	fmt.Printf("DEBUG HeadObject → bucket: %s  key: %s\n", c.bucket, key)
 	_, err := c.s3.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(c.bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "NoSuchKey") ||
-			strings.Contains(err.Error(), "NotFound") ||
-			strings.Contains(err.Error(), "404") {
-			return false, nil
+		// Check if it's specifically a 404 Not Found
+		var notFound *types.NotFound
+		if errors.As(err, &notFound) {
+			return false, nil // file doesn't exist — not an error
 		}
+
+		// Check for generic HTTP 403/404 via smithy
+		var apiErr smithy.APIError
+		if errors.As(err, &apiErr) {
+			code := apiErr.ErrorCode()
+			if code == "NoSuchKey" || code == "NotFound" {
+				return false, nil // file doesn't exist — not an error
+			}
+			// 403 or anything else is a real error
+			return false, fmt.Errorf("failed to head object %s: %w", key, err)
+		}
+
 		return false, fmt.Errorf("failed to head object %s: %w", key, err)
 	}
-
 	return true, nil
 }
 
@@ -127,7 +143,8 @@ func (c *Client) PromoteFile(ctx context.Context, stagingKey string) (string, er
 
 	return finalKey, nil
 }
-//extra function just used when need to mannual cleanup.
+
+// extra function just used when need to mannual cleanup.
 func (c *Client) DeleteStagingFile(ctx context.Context, stagingKey string) error {
 	_, err := c.s3.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(c.bucket),
@@ -139,4 +156,3 @@ func (c *Client) DeleteStagingFile(ctx context.Context, stagingKey string) error
 
 	return nil
 }
-

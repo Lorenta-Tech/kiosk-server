@@ -48,8 +48,8 @@ func (fh *FileHandler) HandleInitFileUpload(w http.ResponseWriter, r *http.Reque
 	}
 
 	// TODO: replace with real values once auth middleware is wired.
-	userID := "hardcoded-user-id"
-	userEmail := "hardcoded@email.com"
+	userID := "8473e7f9-2c72-4baf-b861-cd8238b15af6"
+	userEmail := "suhas@test.com"
 
 	resp, err := fh.fileservice.InitUpload(r.Context(), userID, userEmail, req)
 	if err != nil {
@@ -61,3 +61,41 @@ func (fh *FileHandler) HandleInitFileUpload(w http.ResponseWriter, r *http.Reque
 		"data": resp,
 	})
 }
+// HandleConfirmFileUpload godoc
+//
+//	@Summary      Confirm uploaded files and set print options
+//	@Description  Called after files are uploaded directly to S3.
+//	              Verifies each file exists in S3 staging, saves print options,
+//	              calculates the total price, and moves the session to "priced".
+//	              The response contains the per-file price breakdown and the
+//	              total amount to charge — use this to create the Razorpay order.
+//	@Tags         uploads
+//	@Accept       json
+//	@Produce      json
+//	@Param        body  body      models.ConfirmUploadRequest  true  "Print options per file"
+//	@Success      200   {object}  models.ConfirmUploadResponse
+//	@Failure      400   {object}  utils.Envelope
+//	@Failure      404   {object}  utils.Envelope
+//	@Failure      500   {object}  utils.Envelope
+//	@Router       /files/upload/confirm [post]
+func (fh *FileHandler) HandleConfirmFileUpload(w http.ResponseWriter, r *http.Request) {
+	req, err := utils.DecodeJSON[models.ConfirmUploadRequest](r)
+	if err != nil {
+		utils.HandleError(w, fh.logger, err)
+		return
+	}
+ 
+	if err := validator.Validate(req); err != nil {
+		utils.HandleError(w, fh.logger, apperror.BadRequest("validation_error", err.Error()))
+		return
+	}
+ 
+	resp, err := fh.fileservice.ConfirmUpload(r.Context(), req)
+	if err != nil {
+		utils.HandleError(w, fh.logger, err)
+		return
+	}
+ 
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
+}
+ 

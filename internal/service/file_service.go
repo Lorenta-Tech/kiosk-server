@@ -5,13 +5,15 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/Lorenta-Tech/kiosk-server/internal/models"
 	"github.com/Lorenta-Tech/kiosk-server/internal/repository"
-	s3pkg "github.com/Lorenta-Tech/kiosk-server/pkg/s3"
 	"github.com/Lorenta-Tech/kiosk-server/pkg/apperror"
+	s3pkg "github.com/Lorenta-Tech/kiosk-server/pkg/s3"
+	"github.com/Lorenta-Tech/kiosk-server/pkg/utils"
 	"github.com/google/uuid"
 )
 
@@ -57,7 +59,7 @@ func (fs *FileService) InitUpload(
 		"file_count", len(req.Files),
 	)
 	
-	// Opening the transaction to clearly succed all repo calls in this function, if one fails everything rollsback.
+	//Opens DB Transaction
 	tx, err := fs.db.BeginTx(ctx, nil)
 	if err != nil {
 		fs.logger.Error("init upload failed to open transaction",
@@ -158,6 +160,161 @@ func (fs *FileService) InitUpload(
 	}, nil
 }
 
+func (fs *FileService) ConfirmUpload(
+	ctx context.Context,
+	req models.ConfirmUploadRequest,
+) (models.ConfirmUploadResponse, error) {
+ 
+	fs.logger.Info("confirm upload started",
+		"session_id", req.SessionID,
+		"file_count", len(req.Files),
+	)
+
+	session, err := fs.filerepo.GetSessionByID(ctx, req.SessionID)
+	if err != nil {
+		return models.ConfirmUploadResponse{}, err
+	}
+
+	if session.Status != "created" && session.Status != "uploaded" {
+		return models.ConfirmUploadResponse{}, apperror.BadRequest(
+			"session_not_confirmable",
+			fmt.Sprintf("session is in status '%s' and cannot be confirmed", session.Status),
+		)
+	}
+ 
+	if time.Now().After(session.ExpiresAt) {
+		return models.ConfirmUploadResponse{}, apperror.BadRequest(
+			"session_expired",
+			"this upload session has expired, please start again",
+		)
+	}
+ 
+	fs.logger.Info("session validated for confirm",
+		"session_id", req.SessionID,
+		"status", session.Status,
+	)
+
+	type enrichedFile struct {
+		dbRow    models.UploadFile
+		response models.ConfirmFileResponse
+	}
+ 
+	enriched := make([]enrichedFile, 0, len(req.Files))
+	var totalAmount float64
+	var totalSheets int
+ 
+	for _, f := range req.Files {
+		dbFile, err := fs.filerepo.GetFileByID(ctx, f.FileID, req.SessionID)
+		if err != nil {
+			return models.ConfirmUploadResponse{}, err
+		}
+
+		exists, err := fs.s3.FileExists(ctx, dbFile.StagingKey)
+		if err != nil {
+			fs.logger.Error("s3 existence check failed",
+				"session_id", req.SessionID,
+				"file_id", f.FileID,
+				"staging_key", dbFile.StagingKey,
+				"error", err,
+			)
+			return models.ConfirmUploadResponse{}, apperror.Internal(
+				"failed to verify file upload status", err,
+			)
+		}
+		if !exists {
+			fs.logger.Warn("file not found in s3 staging",
+				"session_id", req.SessionID,
+				"file_id", f.FileID,
+				"staging_key", dbFile.StagingKey,
+			)
+			return models.ConfirmUploadResponse{}, apperror.BadRequest(
+				"file_not_uploaded",
+				fmt.Sprintf("file %s was not found in storage, please re-upload", dbFile.FileName),
+			)
+		}
+
+		price, sheets := utils.CalculateFilePrice(
+			f.NumOfPages,
+			f.Copies,
+			f.PageLayout,
+			f.PrintingMode,
+			f.PrintingSide,
+		)
+ 
+		totalAmount += price
+		totalSheets += sheets
+
+		dbFile.PrintingMode  = &f.PrintingMode
+		dbFile.PrintingSide  = &f.PrintingSide
+		dbFile.PageRange     = &f.PageRange
+		dbFile.PageLayout    = &f.PageLayout
+		dbFile.Copies        = &f.Copies
+		dbFile.NumberOfPages = &f.NumOfPages
+		dbFile.Price         = &price
+ 
+		enriched = append(enriched, enrichedFile{
+			dbRow: dbFile,
+			response: models.ConfirmFileResponse{
+				FileID:     dbFile.ID,
+				FileName:   dbFile.FileName,
+				NumOfPages: f.NumOfPages,
+				Copies:     f.Copies,
+				Price:      price,
+			},
+		})
+ 
+		fs.logger.Info("file confirmed",
+			"session_id", req.SessionID,
+			"file_id", f.FileID,
+			"file_name", dbFile.FileName,
+			"sheets", sheets,
+			"price", price,
+		)
+	}
+ 
+	// Begin Transaction
+	tx, err := fs.db.BeginTx(ctx, nil)
+	if err != nil {
+		return models.ConfirmUploadResponse{}, apperror.Internal("failed to begin transaction", err)
+	}
+	defer tx.Rollback()
+ 
+	txRepo := fs.filerepo.WithTx(tx)
+ 
+	for _, ef := range enriched {
+		if err := txRepo.UpdateFileWithPrintOptions(ctx, ef.dbRow); err != nil {
+			return models.ConfirmUploadResponse{}, err
+		}
+	}
+ 
+	if err := txRepo.UpdateSessionPriced(ctx, req.SessionID, totalAmount, totalSheets); err != nil {
+		return models.ConfirmUploadResponse{}, err
+	}
+ 
+	if err := tx.Commit(); err != nil {
+		return models.ConfirmUploadResponse{}, apperror.Internal("failed to commit transaction", err)
+	}
+ 
+	fs.logger.Info("confirm upload completed",
+		"session_id", req.SessionID,
+		"total_sheets", totalSheets,
+		"total_amount", totalAmount,
+	)
+ 
+	responseFiles := make([]models.ConfirmFileResponse, 0, len(enriched))
+	for _, ef := range enriched {
+		responseFiles = append(responseFiles, ef.response)
+	}
+ 
+	return models.ConfirmUploadResponse{
+		SessionID:   req.SessionID,
+		Status:      "priced",
+		Files:       responseFiles,
+		TotalSheets: totalSheets,
+		TotalAmount: totalAmount,
+	}, nil
+}
+
 // generateToken returns a 32-byte cryptographically random hex string.
 func generateToken() (string, error) {
 	b := make([]byte, 32)
@@ -166,3 +323,4 @@ func generateToken() (string, error) {
 	}
 	return hex.EncodeToString(b), nil
 }
+
