@@ -39,6 +39,11 @@ func fieldError(fe validator.FieldError) string {
 		return field + " is required"
 	case "email":
 		return field + " must be a valid email address"
+	case "len", "numeric":
+		if field == "token" {
+			return "token must be exactly 6 digits"
+		}
+		return field + "is invalid"
 	default:
 		return field + " is invalid"
 	}

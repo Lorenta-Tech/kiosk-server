@@ -6,13 +6,6 @@ import (
 	"net/http"
 )
 
-// AppError is the single error type used across the entire application.
-// Every layer (repository, service, handler) returns or wraps this type.
-//
-// Code    → machine-readable string, sent to the frontend
-// Message → human-readable string, sent to the frontend
-// Status  → HTTP status code the handler will use
-// Err     → original underlying error, only used for internal logging, never exposed
 type AppError struct {
 	Code    string
 	Message string
@@ -32,10 +25,6 @@ func (e *AppError) Unwrap() error {
 	return e.Err
 }
 
-// ── Constructors ──────────────────────────────────────────────────────────────
-
-// Internal wraps a low-level error (DB failure, S3 failure, etc.).
-// The original err is for logging only — it is never sent to the client.
 func Internal(msg string, err error) *AppError {
 	return &AppError{
 		Code:    "internal_error",
@@ -45,7 +34,6 @@ func Internal(msg string, err error) *AppError {
 	}
 }
 
-// BadRequest is used when the client sends invalid data.
 func BadRequest(code, msg string) *AppError {
 	return &AppError{
 		Code:    code,
@@ -54,7 +42,6 @@ func BadRequest(code, msg string) *AppError {
 	}
 }
 
-// NotFound is used when a requested resource does not exist.
 func NotFound(code, msg string) *AppError {
 	return &AppError{
 		Code:    code,
@@ -63,7 +50,6 @@ func NotFound(code, msg string) *AppError {
 	}
 }
 
-// Unauthorized is used when a request is missing or has invalid auth.
 func Unauthorized(msg string) *AppError {
 	return &AppError{
 		Code:    "unauthorized",
@@ -72,7 +58,6 @@ func Unauthorized(msg string) *AppError {
 	}
 }
 
-// UnprocessableEntity is used when input is valid JSON but fails business rules.
 func UnprocessableEntity(code, msg string) *AppError {
 	return &AppError{
 		Code:    code,
@@ -81,13 +66,6 @@ func UnprocessableEntity(code, msg string) *AppError {
 	}
 }
 
-// ── Helper ────────────────────────────────────────────────────────────────────
-
-// As checks whether err is an *AppError and writes it into target.
-// Use this in handlers to decide how to respond.
-//
-//	var appErr *apperror.AppError
-//	if apperror.As(err, &appErr) { ... }
 func As(err error, target **AppError) bool {
 	return errors.As(err, target)
 }

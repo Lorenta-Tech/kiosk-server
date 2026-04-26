@@ -36,6 +36,9 @@ type UploadSession struct {
 	CreatedAt time.Time
 }
 
+type Token struct {
+	Token string `json:"token" validate:"required,numeric,len=6"`
+}
 // Print option fields are pointer types because they start as NULL
 type UploadFile struct {
 	ID            string
@@ -80,4 +83,8 @@ type ConfirmUploadResponse struct {
 	Files       []ConfirmFileResponse `json:"files"`
 	TotalSheets int                   `json:"total_sheets"`
 	TotalAmount float64               `json:"total_amount"`
+}
+
+type GetFilesByTokenResponse struct{
+	Files []UploadFile  `json:"files"`
 }

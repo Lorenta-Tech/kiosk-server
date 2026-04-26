@@ -4,9 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
-	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"math/big"
+	"strconv"
 	"time"
 
 	"github.com/Lorenta-Tech/kiosk-server/internal/models"
@@ -20,7 +21,7 @@ import (
 type FileService struct {
 	filerepo repository.FileRepo
 	s3       *s3pkg.Client
-	db       *sql.DB   
+	db       *sql.DB
 	logger   *slog.Logger
 }
 
@@ -38,15 +39,6 @@ func NewFileService(
 	}
 }
 
-// InitUpload is the service entry point for POST /files/upload/init.
-//
-// It does the following in order:
-//  1. Opens a DB transaction
-//  2. Creates the upload_session row
-//  3. For each file: generates a staging key + presigned PUT URL
-//  4. Inserts all upload_files rows inside the same transaction
-//  5. Commits — if anything above fails, the transaction is rolled back
-//     automatically and no partial data is left in the DB
 func (fs *FileService) InitUpload(
 	ctx context.Context,
 	userID string,
@@ -58,7 +50,7 @@ func (fs *FileService) InitUpload(
 		"user_id", userID,
 		"file_count", len(req.Files),
 	)
-	
+
 	//Opens DB Transaction
 	tx, err := fs.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -78,12 +70,14 @@ func (fs *FileService) InitUpload(
 		return models.InitUploadResponse{}, apperror.Internal("failed to generate session token", err)
 	}
 
+	tokenStr := strconv.Itoa(token)
+
 	session := models.UploadSession{
 		ID:        sessionID,
 		UserID:    userID,
 		UserEmail: userEmail,
 		Status:    "created",
-		Token:     token,
+		Token:     tokenStr,
 		ExpiresAt: time.Now().Add(1 * time.Hour),
 	}
 
@@ -137,7 +131,7 @@ func (fs *FileService) InitUpload(
 		return models.InitUploadResponse{}, err
 	}
 
-	// Commit 
+	// Commit
 	if err := tx.Commit(); err != nil {
 		fs.logger.Error("init upload failed to commit transaction",
 			"session_id", sessionID,
@@ -164,7 +158,7 @@ func (fs *FileService) ConfirmUpload(
 	ctx context.Context,
 	req models.ConfirmUploadRequest,
 ) (models.ConfirmUploadResponse, error) {
- 
+
 	fs.logger.Info("confirm upload started",
 		"session_id", req.SessionID,
 		"file_count", len(req.Files),
@@ -181,14 +175,14 @@ func (fs *FileService) ConfirmUpload(
 			fmt.Sprintf("session is in status '%s' and cannot be confirmed", session.Status),
 		)
 	}
- 
+
 	if time.Now().After(session.ExpiresAt) {
 		return models.ConfirmUploadResponse{}, apperror.BadRequest(
 			"session_expired",
 			"this upload session has expired, please start again",
 		)
 	}
- 
+
 	fs.logger.Info("session validated for confirm",
 		"session_id", req.SessionID,
 		"status", session.Status,
@@ -198,11 +192,11 @@ func (fs *FileService) ConfirmUpload(
 		dbRow    models.UploadFile
 		response models.ConfirmFileResponse
 	}
- 
+
 	enriched := make([]enrichedFile, 0, len(req.Files))
 	var totalAmount float64
 	var totalSheets int
- 
+
 	for _, f := range req.Files {
 		dbFile, err := fs.filerepo.GetFileByID(ctx, f.FileID, req.SessionID)
 		if err != nil {
@@ -240,18 +234,18 @@ func (fs *FileService) ConfirmUpload(
 			f.PrintingMode,
 			f.PrintingSide,
 		)
- 
+
 		totalAmount += price
 		totalSheets += sheets
 
-		dbFile.PrintingMode  = &f.PrintingMode
-		dbFile.PrintingSide  = &f.PrintingSide
-		dbFile.PageRange     = &f.PageRange
-		dbFile.PageLayout    = &f.PageLayout
-		dbFile.Copies        = &f.Copies
+		dbFile.PrintingMode = &f.PrintingMode
+		dbFile.PrintingSide = &f.PrintingSide
+		dbFile.PageRange = &f.PageRange
+		dbFile.PageLayout = &f.PageLayout
+		dbFile.Copies = &f.Copies
 		dbFile.NumberOfPages = &f.NumOfPages
-		dbFile.Price         = &price
- 
+		dbFile.Price = &price
+
 		enriched = append(enriched, enrichedFile{
 			dbRow: dbFile,
 			response: models.ConfirmFileResponse{
@@ -262,7 +256,7 @@ func (fs *FileService) ConfirmUpload(
 				Price:      price,
 			},
 		})
- 
+
 		fs.logger.Info("file confirmed",
 			"session_id", req.SessionID,
 			"file_id", f.FileID,
@@ -271,41 +265,41 @@ func (fs *FileService) ConfirmUpload(
 			"price", price,
 		)
 	}
- 
+
 	// Begin Transaction
 	tx, err := fs.db.BeginTx(ctx, nil)
 	if err != nil {
 		return models.ConfirmUploadResponse{}, apperror.Internal("failed to begin transaction", err)
 	}
 	defer tx.Rollback()
- 
+
 	txRepo := fs.filerepo.WithTx(tx)
- 
+
 	for _, ef := range enriched {
 		if err := txRepo.UpdateFileWithPrintOptions(ctx, ef.dbRow); err != nil {
 			return models.ConfirmUploadResponse{}, err
 		}
 	}
- 
+
 	if err := txRepo.UpdateSessionPriced(ctx, req.SessionID, totalAmount, totalSheets); err != nil {
 		return models.ConfirmUploadResponse{}, err
 	}
- 
+
 	if err := tx.Commit(); err != nil {
 		return models.ConfirmUploadResponse{}, apperror.Internal("failed to commit transaction", err)
 	}
- 
+
 	fs.logger.Info("confirm upload completed",
 		"session_id", req.SessionID,
 		"total_sheets", totalSheets,
 		"total_amount", totalAmount,
 	)
- 
+
 	responseFiles := make([]models.ConfirmFileResponse, 0, len(enriched))
 	for _, ef := range enriched {
 		responseFiles = append(responseFiles, ef.response)
 	}
- 
+
 	return models.ConfirmUploadResponse{
 		SessionID:   req.SessionID,
 		Status:      "priced",
@@ -315,12 +309,25 @@ func (fs *FileService) ConfirmUpload(
 	}, nil
 }
 
-// generateToken returns a 32-byte cryptographically random hex string.
-func generateToken() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
+func (fs *FileService) GetFilesByToken(ctx context.Context, token string)(models.GetFilesByTokenResponse,error) {
+
+	fs.logger.Info("Get Files By Token Started",
+		"token", token,
+    )
+
+	if token == ""{
+		return models.GetFilesByTokenResponse{},apperror.BadRequest("token is empty in service layer",fmt.Sprintf("token is must be 6 digits"))
 	}
-	return hex.EncodeToString(b), nil
+
+	return models.GetFilesByTokenResponse{},nil
+
 }
 
+// generate 6 digit integers
+func generateToken() (int, error) {
+	n, err := rand.Int(rand.Reader, big.NewInt(900000))
+	if err != nil {
+		return 0, err
+	}
+	return int(n.Int64()) + 100000, nil
+}

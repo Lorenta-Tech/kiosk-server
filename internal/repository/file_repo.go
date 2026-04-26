@@ -199,4 +199,8 @@ func (r *PostgresFileRepo) UpdateSessionPriced(ctx context.Context, sessionID st
 	}
 	return nil
 }
- 
+
+func (r *PostgresFileRepo) GetFileByToken(ctx context.Context,token string)(error){
+	return nil
+}
+
