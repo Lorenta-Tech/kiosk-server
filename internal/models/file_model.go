@@ -85,6 +85,6 @@ type ConfirmUploadResponse struct {
 	TotalAmount float64               `json:"total_amount"`
 }
 
-type GetFilesByTokenResponse struct{
+type GetPrintJobByTokenResponse struct{
 	Files []UploadFile  `json:"files"`
 }

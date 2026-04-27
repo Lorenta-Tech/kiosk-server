@@ -98,19 +98,38 @@ func (fh *FileHandler) HandleConfirmFileUpload(w http.ResponseWriter, r *http.Re
  
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
 }
-
-func (fh *FileHandler) GetFilesByToken(w http.ResponseWriter,r *http.Request){
-	req,err := utils.DecodeJSON[models.Token](r)
+// GetPrintJobByToken godoc
+//
+//	@Summary      Get print job files by token
+//	@Description  Fetches all files associated with a completed upload session
+//	              identified by a 6-digit token. The session must be in "completed"
+//	              status and must not have expired.
+//	@Tags         uploads
+//	@Accept       json
+//	@Produce      json
+//	@Param        body  body      models.Token  true  "6-digit session token"
+//	@Success      200   {object}  models.GetPrintJobByTokenResponse
+//	@Failure      400   {object}  utils.Envelope
+//	@Failure      404   {object}  utils.Envelope
+//	@Failure      500   {object}  utils.Envelope
+//	@Router       /files/print-job [post]
+func (fh *FileHandler) GetPrintJobByToken(w http.ResponseWriter, r *http.Request) {
+	req, err := utils.DecodeJSON[models.Token](r)
 	if err != nil {
-		utils.HandleError(w,fh.logger,err)
-		return
-	}
-	if err := validator.Validate(req);err != nil {
-		utils.HandleError(w,fh.logger,apperror.BadRequest("validator_error",err.Error()))
+		utils.HandleError(w, fh.logger, err)
 		return
 	}
 
-	utils.WriteJSON(w,http.StatusOK,utils.Envelope{"data":"ok"})
+	if err := validator.Validate(req); err != nil {
+		utils.HandleError(w, fh.logger, apperror.BadRequest("validation_error", err.Error()))
+		return
+	}
 
+	resp, err := fh.fileservice.GetPrintJobByToken(r.Context(), req.Token)
+	if err != nil {
+		utils.HandleError(w, fh.logger, err)
+		return
+	}
 
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
 }

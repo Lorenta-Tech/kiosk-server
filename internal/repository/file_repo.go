@@ -29,6 +29,8 @@ type FileRepo interface {
 	GetFileByID(ctx context.Context, fileID, sessionID string) (models.UploadFile, error)
 	UpdateFileWithPrintOptions(ctx context.Context, file models.UploadFile) error
 	UpdateSessionPriced(ctx context.Context, sessionID string, totalAmount float64, totalSheets int) error
+	GetPrintJobSessionByToken(ctx context.Context,token string)(models.UploadSession,error)
+	GetFilesBySessionID(ctx context.Context,sessionID string)(models.GetPrintJobByTokenResponse,error)
 }
 
 type PostgresFileRepo struct {
@@ -123,7 +125,7 @@ func (r *PostgresFileRepo) GetFileByID(ctx context.Context, fileID, sessionID st
 		WHERE id = $1 AND session_id = $2
 	`
 	row := r.db.QueryRowContext(ctx, query, fileID, sessionID)
- 
+
 	var f models.UploadFile
 	err := row.Scan(
 		&f.ID,
@@ -200,7 +202,87 @@ func (r *PostgresFileRepo) UpdateSessionPriced(ctx context.Context, sessionID st
 	return nil
 }
 
-func (r *PostgresFileRepo) GetFileByToken(ctx context.Context,token string)(error){
-	return nil
-}
+func (r *PostgresFileRepo) GetPrintJobSessionByToken(ctx context.Context, token string) (models.UploadSession, error) {
 
+	const query = `
+	    SELECT id, user_id, user_email, status, expires_at, created_at
+		FROM upload_sessions
+		WHERE token = $1
+		`
+
+	row := r.db.QueryRowContext(ctx, query, token)
+
+	var s models.UploadSession
+
+	err := row.Scan(
+		&s.ID,
+		&s.UserID,
+		&s.UserEmail,
+		&s.Status,
+		&s.ExpiresAt,
+		&s.CreatedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		return models.UploadSession{}, apperror.NotFound(
+			"session_not_found",
+			fmt.Sprintf("session does not exitst for this %s token", token),
+		)
+	}
+	return s, nil
+}
+func (r *PostgresFileRepo) GetFilesBySessionID(ctx context.Context, sessionID string) (models.GetPrintJobByTokenResponse, error) {
+	const query = `
+		SELECT id, session_id, file_name, staging_key, final_key,
+		       printing_mode, printing_side, page_range, page_layout,
+		       copies, number_of_pages, price, file_status, created_at
+		FROM upload_files
+		WHERE session_id = $1
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, sessionID)
+	if err != nil {
+		return models.GetPrintJobByTokenResponse{}, apperror.Internal(
+			"failed to query files by session id",
+			fmt.Errorf("repository.GetFilesBySessionID session=%s: %w", sessionID, err),
+		)
+	}
+	defer rows.Close()
+
+	var files []models.UploadFile
+
+	for rows.Next() {
+		var f models.UploadFile
+		if err := rows.Scan(
+			&f.ID,
+			&f.SessionID,
+			&f.FileName,
+			&f.StagingKey,
+			&f.FinalKey,
+			&f.PrintingMode,
+			&f.PrintingSide,
+			pq.Array(&f.PageRange),
+			&f.PageLayout,
+			&f.Copies,
+			&f.NumberOfPages,
+			&f.Price,
+			&f.FileStatus,
+			&f.CreatedAt,
+		); err != nil {
+			return models.GetPrintJobByTokenResponse{}, apperror.Internal(
+				"failed to scan file row",
+				fmt.Errorf("repository.GetFilesBySessionID scan session=%s: %w", sessionID, err),
+			)
+		}
+		files = append(files, f)
+	}
+
+	if err := rows.Err(); err != nil {
+		return models.GetPrintJobByTokenResponse{}, apperror.Internal(
+			"error iterating file rows",
+			fmt.Errorf("repository.GetFilesBySessionID rows.Err session=%s: %w", sessionID, err),
+		)
+	}
+
+	return models.GetPrintJobByTokenResponse{Files: files}, nil
+}

@@ -309,18 +309,47 @@ func (fs *FileService) ConfirmUpload(
 	}, nil
 }
 
-func (fs *FileService) GetFilesByToken(ctx context.Context, token string)(models.GetFilesByTokenResponse,error) {
+func (fs *FileService) GetPrintJobByToken(ctx context.Context, token string) (models.GetPrintJobByTokenResponse, error) {
 
-	fs.logger.Info("Get Files By Token Started",
+	fs.logger.Info("get print job by token started",
 		"token", token,
-    )
+	)
 
-	if token == ""{
-		return models.GetFilesByTokenResponse{},apperror.BadRequest("token is empty in service layer",fmt.Sprintf("token is must be 6 digits"))
+	session, err := fs.filerepo.GetPrintJobSessionByToken(ctx, token)
+	if err != nil {
+		return models.GetPrintJobByTokenResponse{}, err
 	}
 
-	return models.GetFilesByTokenResponse{},nil
+	if session.Status != "uploaded" {
+		return models.GetPrintJobByTokenResponse{}, apperror.BadRequest(
+			"session_not_ready",
+			fmt.Sprintf("session is in the wrong state, expected 'uploaded' but got '%s'", session.Status),
+		)
+	}
 
+	if time.Now().After(session.ExpiresAt) {
+		return models.GetPrintJobByTokenResponse{}, apperror.BadRequest(
+			"session_expired",
+			"this upload session has expired, You can't access this job right now.",
+		)
+	}
+
+	fs.logger.Info("session validated for print job fetch",
+		"session_id", session.ID,
+		"status", session.Status,
+	)
+
+	files, err := fs.filerepo.GetFilesBySessionID(ctx, session.ID)
+	if err != nil {
+		return models.GetPrintJobByTokenResponse{}, apperror.Internal("failed to get files by session id", err)
+	}
+
+	fs.logger.Info("get print job by token completed",
+		"session_id", session.ID,
+		"file_count", len(files.Files),
+	)
+
+	return files, nil
 }
 
 // generate 6 digit integers
