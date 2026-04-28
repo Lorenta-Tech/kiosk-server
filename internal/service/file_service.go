@@ -18,6 +18,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const defaultRecentJobsLimit = 10
+
 type FileService struct {
 	filerepo repository.FileRepo
 	s3       *s3pkg.Client
@@ -31,12 +33,7 @@ func NewFileService(
 	db *sql.DB,
 	logger *slog.Logger,
 ) *FileService {
-	return &FileService{
-		filerepo: filerepo,
-		s3:       s3,
-		db:       db,
-		logger:   logger,
-	}
+	return &FileService{filerepo: filerepo, s3: s3, db: db, logger: logger}
 }
 
 func (fs *FileService) InitUpload(
@@ -51,26 +48,22 @@ func (fs *FileService) InitUpload(
 		"file_count", len(req.Files),
 	)
 
-	//Opens DB Transaction
 	tx, err := fs.db.BeginTx(ctx, nil)
 	if err != nil {
-		fs.logger.Error("init upload failed to open transaction",
-			"user_id", userID,
-			"error", err,
-		)
 		return models.InitUploadResponse{}, apperror.Internal("failed to begin transaction", err)
 	}
-	defer tx.Rollback() // no-op if tx.Commit()
+	defer tx.Rollback()
 
 	txRepo := fs.filerepo.WithTx(tx)
 
 	sessionID := uuid.NewString()
-	token, err := generateToken()
+
+	// Generate 6-digit token and store as string in DB (VARCHAR column)
+	tokenInt, err := generateToken()
 	if err != nil {
 		return models.InitUploadResponse{}, apperror.Internal("failed to generate session token", err)
 	}
-
-	tokenStr := strconv.Itoa(token)
+	tokenStr := strconv.Itoa(tokenInt)
 
 	session := models.UploadSession{
 		ID:        sessionID,
@@ -82,7 +75,6 @@ func (fs *FileService) InitUpload(
 	}
 
 	if err := txRepo.CreateSession(ctx, session); err != nil {
-		// err is already an *apperror.AppError from the repository layer
 		return models.InitUploadResponse{}, err
 	}
 
@@ -101,7 +93,7 @@ func (fs *FileService) InitUpload(
 
 		uploadURL, err := fs.s3.PresignPut(ctx, stagingKey)
 		if err != nil {
-			fs.logger.Error("failed to generate presigned url",
+			fs.logger.Error("presign failed",
 				"session_id", sessionID,
 				"file_name", f.FileName,
 				"error", err,
@@ -131,13 +123,7 @@ func (fs *FileService) InitUpload(
 		return models.InitUploadResponse{}, err
 	}
 
-	// Commit
 	if err := tx.Commit(); err != nil {
-		fs.logger.Error("init upload failed to commit transaction",
-			"session_id", sessionID,
-			"user_id", userID,
-			"error", err,
-		)
 		return models.InitUploadResponse{}, apperror.Internal("failed to commit transaction", err)
 	}
 
@@ -149,6 +135,7 @@ func (fs *FileService) InitUpload(
 
 	return models.InitUploadResponse{
 		SessionID: sessionID,
+		Token:     tokenInt, // return as int so frontend shows 6-digit number cleanly
 		ExpiresAt: session.ExpiresAt,
 		Files:     responseFiles,
 	}, nil
@@ -228,23 +215,20 @@ func (fs *FileService) ConfirmUpload(
 		}
 
 		price, sheets := utils.CalculateFilePrice(
-			f.NumOfPages,
-			f.Copies,
-			f.PageLayout,
-			f.PrintingMode,
-			f.PrintingSide,
+			f.NumOfPages, f.Copies, f.PageLayout,
+			f.PrintingMode, f.PrintingSide,
 		)
 
 		totalAmount += price
 		totalSheets += sheets
 
-		dbFile.PrintingMode = &f.PrintingMode
-		dbFile.PrintingSide = &f.PrintingSide
-		dbFile.PageRange = &f.PageRange
-		dbFile.PageLayout = &f.PageLayout
-		dbFile.Copies = &f.Copies
+		dbFile.PrintingMode  = &f.PrintingMode
+		dbFile.PrintingSide  = &f.PrintingSide
+		dbFile.PageRange     = f.PageRange
+		dbFile.PageLayout    = &f.PageLayout
+		dbFile.Copies        = &f.Copies
 		dbFile.NumberOfPages = &f.NumOfPages
-		dbFile.Price = &price
+		dbFile.Price         = &price
 
 		enriched = append(enriched, enrichedFile{
 			dbRow: dbFile,
@@ -266,7 +250,6 @@ func (fs *FileService) ConfirmUpload(
 		)
 	}
 
-	// Begin Transaction
 	tx, err := fs.db.BeginTx(ctx, nil)
 	if err != nil {
 		return models.ConfirmUploadResponse{}, apperror.Internal("failed to begin transaction", err)
@@ -309,50 +292,185 @@ func (fs *FileService) ConfirmUpload(
 	}, nil
 }
 
-func (fs *FileService) GetPrintJobByToken(ctx context.Context, token string) (models.GetPrintJobByTokenResponse, error) {
 
-	fs.logger.Info("get print job by token started",
-		"token", token,
-	)
+func (fs *FileService) GetRecentPrintJobs(
+	ctx context.Context,
+	userID string,
+) (models.RecentPrintJobsResponse, error) {
 
-	session, err := fs.filerepo.GetPrintJobSessionByToken(ctx, token)
+	fs.logger.Info("get recent print jobs started", "user_id", userID)
+
+	sessions, err := fs.filerepo.GetRecentPrintJobs(ctx, userID, defaultRecentJobsLimit)
 	if err != nil {
-		return models.GetPrintJobByTokenResponse{}, err
+		return models.RecentPrintJobsResponse{}, err
 	}
 
-	if session.Status != "uploaded" {
-		return models.GetPrintJobByTokenResponse{}, apperror.BadRequest(
-			"session_not_ready",
-			fmt.Sprintf("session is in the wrong state, expected 'uploaded' but got '%s'", session.Status),
-		)
+	if len(sessions) == 0 {
+		fs.logger.Info("no print jobs found", "user_id", userID)
+		return models.RecentPrintJobsResponse{Jobs: []models.PrintJob{}, Total: 0}, nil
 	}
 
-	if time.Now().After(session.ExpiresAt) {
-		return models.GetPrintJobByTokenResponse{}, apperror.BadRequest(
-			"session_expired",
-			"this upload session has expired, You can't access this job right now.",
-		)
+	jobs, err := fs.buildPrintJobs(ctx, sessions)
+	if err != nil {
+		return models.RecentPrintJobsResponse{}, err
 	}
 
-	fs.logger.Info("session validated for print job fetch",
-		"session_id", session.ID,
-		"status", session.Status,
+	fs.logger.Info("get recent print jobs completed",
+		"user_id", userID,
+		"job_count", len(jobs),
 	)
+
+	return models.RecentPrintJobsResponse{Jobs: jobs, Total: len(jobs)}, nil
+}
+
+func (fs *FileService) GetJobByToken(
+	ctx context.Context,
+	req models.GetJobByTokenRequest,
+) (models.TokenJobResponse, error) {
+
+	tokenStr := strconv.Itoa(req.Token)
+
+	fs.logger.Info("get job by token started", "token", req.Token)
+
+	session, err := fs.filerepo.GetSessionByToken(ctx, tokenStr)
+	if err != nil {
+		return models.TokenJobResponse{}, err
+	}
+
+	if session.Status != "priced" {
+		fs.logger.Warn("token lookup rejected — wrong session status",
+			"token", req.Token,
+			"session_id", session.ID,
+			"status", session.Status,
+		)
+		return models.TokenJobResponse{}, apperror.BadRequest(
+			"token_not_ready",
+			tokenStatusMessage(session.Status),
+		)
+	}
+
+	// Check expiry 
+	if time.Now().After(session.ExpiresAt) {
+		fs.logger.Warn("token lookup rejected — session expired",
+			"token", req.Token,
+			"session_id", session.ID,
+			"expired_at", session.ExpiresAt,
+		)
+		return models.TokenJobResponse{}, apperror.BadRequest(
+			"token_expired",
+			"this token has expired, please start a new upload",
+		)
+	}
 
 	files, err := fs.filerepo.GetFilesBySessionID(ctx, session.ID)
 	if err != nil {
-		return models.GetPrintJobByTokenResponse{}, apperror.Internal("failed to get files by session id", err)
+		return models.TokenJobResponse{}, err
 	}
 
-	fs.logger.Info("get print job by token completed",
+	printJobFiles := make([]models.PrintJobFile, 0, len(files))
+	for _, f := range files {
+		//url expires in 15 minutes
+		url, err := fs.s3.PresignGet(ctx, f.StagingKey)//need to put final key
+		if err != nil {
+			fs.logger.Error("failed to presign get url for file",
+				"session_id", session.ID,
+				"file_id", f.ID,
+				"staging_key", f.StagingKey,
+				"error", err,
+			)
+			return models.TokenJobResponse{}, apperror.Internal(
+				fmt.Sprintf("failed to generate download URL for file %s", f.FileName), err,
+			)
+		}
+
+		pf := models.PrintJobFile{
+			FileID:        f.ID,
+			FileName:      f.FileName,
+			PrintingMode:  f.PrintingMode,
+			PrintingSide:  f.PrintingSide,
+			PageRange:     f.PageRange,
+			PageLayout:    f.PageLayout,
+			Copies:        f.Copies,
+			NumberOfPages: f.NumberOfPages,
+			Price:         f.Price,
+			FileStatus:    f.FileStatus,
+			DownloadURL:   &url, 
+		}
+		printJobFiles = append(printJobFiles, pf)
+	}
+
+	fs.logger.Info("get job by token completed",
+		"token", req.Token,
 		"session_id", session.ID,
-		"file_count", len(files.Files),
+		"file_count", len(files),
 	)
 
-	return files, nil
+	return models.TokenJobResponse{
+		Job: models.PrintJob{
+			SessionID:   session.ID,
+			Status:      session.Status,
+			TotalAmount: session.TotalAmount,
+			TotalSheets: session.TotalSheets,
+			CreatedAt:   session.CreatedAt,
+			Files:       printJobFiles,
+		},
+	}, nil
 }
 
-// generate 6 digit integers
+func (fs *FileService) buildPrintJobs(ctx context.Context, sessions []models.UploadSession) ([]models.PrintJob, error) {
+	jobs := make([]models.PrintJob, 0, len(sessions))
+	for _, s := range sessions {
+		files, err := fs.filerepo.GetFilesBySessionID(ctx, s.ID)
+		if err != nil {
+			return nil, err
+		}
+		jobs = append(jobs, models.PrintJob{
+			SessionID:   s.ID,
+			Status:      s.Status,
+			TotalAmount: s.TotalAmount,
+			TotalSheets: s.TotalSheets,
+			CreatedAt:   s.CreatedAt,
+			Files:       buildPrintJobFiles(files),
+		})
+	}
+	return jobs, nil
+}
+
+
+func buildPrintJobFiles(files []models.UploadFile) []models.PrintJobFile {
+	result := make([]models.PrintJobFile, 0, len(files))
+	for _, f := range files {
+		result = append(result, models.PrintJobFile{
+			FileID:        f.ID,
+			FileName:      f.FileName,
+			PrintingMode:  f.PrintingMode,
+			PrintingSide:  f.PrintingSide,
+			PageRange:     f.PageRange,
+			PageLayout:    f.PageLayout,
+			Copies:        f.Copies,
+			NumberOfPages: f.NumberOfPages,
+			Price:         f.Price,
+			FileStatus:    f.FileStatus,
+		})
+	}
+	return result
+}
+
+
+func tokenStatusMessage(status string) string {
+	switch status {
+	case "created", "uploaded":
+		return "this job has not been confirmed yet, please complete the upload first"
+	case "paid":
+		return "this job has already been paid and processed"
+	case "expired":
+		return "this token has expired, please start a new upload"
+	default:
+		return "this token is not ready for printing"
+	}
+}
+
+// generateToken returns a cryptographically random 6-digit integer (100000–999999).
 func generateToken() (int, error) {
 	n, err := rand.Int(rand.Reader, big.NewInt(900000))
 	if err != nil {

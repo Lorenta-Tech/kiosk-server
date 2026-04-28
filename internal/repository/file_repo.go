@@ -10,29 +10,37 @@ import (
 	"github.com/lib/pq"
 )
 
-// DBTX Initialization
-
-// DBTX is satisfied by both *sql.DB and *sql.Tx.
-// This means the same repository methods work for regular queries
-// and transactional queries without any code duplication.
+// DBTX 
 type DBTX interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
+// Interface 
+
 type FileRepo interface {
 	WithTx(tx *sql.Tx) FileRepo
+
+	// Init 
 	CreateSession(ctx context.Context, session models.UploadSession) error
 	CreateFiles(ctx context.Context, files []models.UploadFile) error
+
+	// Confirm 
 	GetSessionByID(ctx context.Context, sessionID string) (models.UploadSession, error)
 	GetFileByID(ctx context.Context, fileID, sessionID string) (models.UploadFile, error)
 	UpdateFileWithPrintOptions(ctx context.Context, file models.UploadFile) error
 	UpdateSessionPriced(ctx context.Context, sessionID string, totalAmount float64, totalSheets int) error
-	GetPrintJobSessionByToken(ctx context.Context,token string)(models.UploadSession,error)
-	GetFilesBySessionID(ctx context.Context,sessionID string)(models.GetPrintJobByTokenResponse,error)
+
+	// Recent print jobs 
+	GetRecentPrintJobs(ctx context.Context, userID string, limit int) ([]models.UploadSession, error)
+	GetFilesBySessionID(ctx context.Context, sessionID string) ([]models.UploadFile, error)
+
+	// Token lookup
+	GetSessionByToken(ctx context.Context, token string) (models.UploadSession, error)
 }
 
+// Implementation 
 type PostgresFileRepo struct {
 	db DBTX
 }
@@ -45,6 +53,7 @@ func (r *PostgresFileRepo) WithTx(tx *sql.Tx) FileRepo {
 	return &PostgresFileRepo{db: tx}
 }
 
+//Init 
 func (r *PostgresFileRepo) CreateSession(ctx context.Context, session models.UploadSession) error {
 	const query = `
 		INSERT INTO upload_sessions (id, user_id, user_email, status, token, expires_at)
@@ -74,11 +83,7 @@ func (r *PostgresFileRepo) CreateFiles(ctx context.Context, files []models.Uploa
 	`
 	for _, f := range files {
 		if _, err := r.db.ExecContext(ctx, query,
-			f.ID,
-			f.SessionID,
-			f.FileName,
-			f.StagingKey,
-			f.FileStatus,
+			f.ID, f.SessionID, f.FileName, f.StagingKey, f.FileStatus,
 		); err != nil {
 			return apperror.Internal(
 				"failed to save file record",
@@ -89,30 +94,28 @@ func (r *PostgresFileRepo) CreateFiles(ctx context.Context, files []models.Uploa
 	return nil
 }
 
+//Confirm 
 func (r *PostgresFileRepo) GetSessionByID(ctx context.Context, sessionID string) (models.UploadSession, error) {
 	const query = `
-	    SELECT id, user_id, user_email, status, token, expires_at,created_at
+		SELECT id, user_id, user_email, status, token, expires_at, created_at
 		FROM upload_sessions
 		WHERE id = $1
-		`
-
-	row := r.db.QueryRowContext(ctx, query, sessionID)
-
+	`
 	var s models.UploadSession
-
-	err := row.Scan(
-		&s.ID,
-		&s.UserID,
-		&s.UserEmail,
-		&s.Status,
-		&s.Token,
-		&s.ExpiresAt,
-		&s.CreatedAt,
+	err := r.db.QueryRowContext(ctx, query, sessionID).Scan(
+		&s.ID, &s.UserID, &s.UserEmail,
+		&s.Status, &s.Token, &s.ExpiresAt, &s.CreatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return models.UploadSession{}, apperror.NotFound(
 			"session_not_found",
 			fmt.Sprintf("session %s does not exist", sessionID),
+		)
+	}
+	if err != nil {
+		return models.UploadSession{}, apperror.Internal(
+			"failed to fetch session",
+			fmt.Errorf("repository.GetSessionByID: %w", err),
 		)
 	}
 	return s, nil
@@ -124,15 +127,9 @@ func (r *PostgresFileRepo) GetFileByID(ctx context.Context, fileID, sessionID st
 		FROM upload_files
 		WHERE id = $1 AND session_id = $2
 	`
-	row := r.db.QueryRowContext(ctx, query, fileID, sessionID)
-
 	var f models.UploadFile
-	err := row.Scan(
-		&f.ID,
-		&f.SessionID,
-		&f.FileName,
-		&f.StagingKey,
-		&f.FileStatus,
+	err := r.db.QueryRowContext(ctx, query, fileID, sessionID).Scan(
+		&f.ID, &f.SessionID, &f.FileName, &f.StagingKey, &f.FileStatus,
 	)
 	if err == sql.ErrNoRows {
 		return models.UploadFile{}, apperror.NotFound(
@@ -153,26 +150,21 @@ func (r *PostgresFileRepo) UpdateFileWithPrintOptions(ctx context.Context, f mod
 	const query = `
 		UPDATE upload_files
 		SET
-			printing_mode  = $1,
-			printing_side  = $2,
-			page_range     = $3,
-			page_layout    = $4,
-			copies         = $5,
+			printing_mode   = $1,
+			printing_side   = $2,
+			page_range      = $3,
+			page_layout     = $4,
+			copies          = $5,
 			number_of_pages = $6,
-			price          = $7,
-			file_status    = 'confirmed'
+			price           = $7,
+			file_status     = 'confirmed'
 		WHERE id = $8 AND session_id = $9
 	`
 	_, err := r.db.ExecContext(ctx, query,
-		f.PrintingMode,
-		f.PrintingSide,
+		f.PrintingMode, f.PrintingSide,
 		pq.Array(f.PageRange),
-		f.PageLayout,
-		f.Copies,
-		f.NumberOfPages,
-		f.Price,
-		f.ID,
-		f.SessionID,
+		f.PageLayout, f.Copies, f.NumberOfPages, f.Price,
+		f.ID, f.SessionID,
 	)
 	if err != nil {
 		return apperror.Internal(
@@ -186,10 +178,7 @@ func (r *PostgresFileRepo) UpdateFileWithPrintOptions(ctx context.Context, f mod
 func (r *PostgresFileRepo) UpdateSessionPriced(ctx context.Context, sessionID string, totalAmount float64, totalSheets int) error {
 	const query = `
 		UPDATE upload_sessions
-		SET
-			status       = 'priced',
-			total_amount = $1,
-			total_sheets = $2
+		SET status = 'priced', total_amount = $1, total_sheets = $2
 		WHERE id = $3
 	`
 	_, err := r.db.ExecContext(ctx, query, totalAmount, totalSheets, sessionID)
@@ -202,87 +191,127 @@ func (r *PostgresFileRepo) UpdateSessionPriced(ctx context.Context, sessionID st
 	return nil
 }
 
-func (r *PostgresFileRepo) GetPrintJobSessionByToken(ctx context.Context, token string) (models.UploadSession, error) {
-
+// Recent print jobs
+func (r *PostgresFileRepo) GetRecentPrintJobs(ctx context.Context, userID string, limit int) ([]models.UploadSession, error) {
 	const query = `
-	    SELECT id, user_id, user_email, status, expires_at, created_at
+		SELECT id, user_id, user_email, status, total_amount, total_sheets, expires_at, created_at
 		FROM upload_sessions
-		WHERE token = $1
-		`
-
-	row := r.db.QueryRowContext(ctx, query, token)
-
-	var s models.UploadSession
-
-	err := row.Scan(
-		&s.ID,
-		&s.UserID,
-		&s.UserEmail,
-		&s.Status,
-		&s.ExpiresAt,
-		&s.CreatedAt,
-	)
-
-	if err == sql.ErrNoRows {
-		return models.UploadSession{}, apperror.NotFound(
-			"session_not_found",
-			fmt.Sprintf("session does not exitst for this %s token", token),
-		)
-	}
-	return s, nil
-}
-func (r *PostgresFileRepo) GetFilesBySessionID(ctx context.Context, sessionID string) (models.GetPrintJobByTokenResponse, error) {
-	const query = `
-		SELECT id, session_id, file_name, staging_key, final_key,
-		       printing_mode, printing_side, page_range, page_layout,
-		       copies, number_of_pages, price, file_status, created_at
-		FROM upload_files
-		WHERE session_id = $1
+		WHERE user_id = $1
+		  AND status != 'created'
+		ORDER BY created_at DESC
+		LIMIT $2
 	`
-
-	rows, err := r.db.QueryContext(ctx, query, sessionID)
+	rows, err := r.db.QueryContext(ctx, query, userID, limit)
 	if err != nil {
-		return models.GetPrintJobByTokenResponse{}, apperror.Internal(
-			"failed to query files by session id",
-			fmt.Errorf("repository.GetFilesBySessionID session=%s: %w", sessionID, err),
+		return nil, apperror.Internal(
+			"failed to fetch recent print jobs",
+			fmt.Errorf("repository.GetRecentPrintJobs: %w", err),
 		)
 	}
 	defer rows.Close()
 
-	var files []models.UploadFile
+	sessions := make([]models.UploadSession, 0, limit)
+	for rows.Next() {
+		var s models.UploadSession
+		if err := rows.Scan(
+			&s.ID, &s.UserID, &s.UserEmail,
+			&s.Status, &s.TotalAmount, &s.TotalSheets,
+			&s.ExpiresAt, &s.CreatedAt,
+		); err != nil {
+			return nil, apperror.Internal(
+				"failed to scan print job row",
+				fmt.Errorf("repository.GetRecentPrintJobs scan: %w", err),
+			)
+		}
+		sessions = append(sessions, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperror.Internal(
+			"error reading print job rows",
+			fmt.Errorf("repository.GetRecentPrintJobs rows.Err: %w", err),
+		)
+	}
+	return sessions, nil
+}
 
+func (r *PostgresFileRepo) GetFilesBySessionID(ctx context.Context, sessionID string) ([]models.UploadFile, error) {
+	const query = `
+		SELECT
+			id, session_id, file_name,
+			printing_mode, printing_side, page_range,
+			page_layout, copies, number_of_pages,
+			price, file_status, created_at
+		FROM upload_files
+		WHERE session_id = $1
+		ORDER BY created_at ASC
+	`
+	rows, err := r.db.QueryContext(ctx, query, sessionID)
+	if err != nil {
+		return nil, apperror.Internal(
+			"failed to fetch session files",
+			fmt.Errorf("repository.GetFilesBySessionID: %w", err),
+		)
+	}
+	defer rows.Close()
+
+	files := make([]models.UploadFile, 0)
 	for rows.Next() {
 		var f models.UploadFile
 		if err := rows.Scan(
-			&f.ID,
-			&f.SessionID,
-			&f.FileName,
-			&f.StagingKey,
-			&f.FinalKey,
-			&f.PrintingMode,
-			&f.PrintingSide,
+			&f.ID, &f.SessionID, &f.FileName,
+			&f.PrintingMode, &f.PrintingSide,
 			pq.Array(&f.PageRange),
-			&f.PageLayout,
-			&f.Copies,
-			&f.NumberOfPages,
-			&f.Price,
-			&f.FileStatus,
-			&f.CreatedAt,
+			&f.PageLayout, &f.Copies, &f.NumberOfPages,
+			&f.Price, &f.FileStatus, &f.CreatedAt,
 		); err != nil {
-			return models.GetPrintJobByTokenResponse{}, apperror.Internal(
+			return nil, apperror.Internal(
 				"failed to scan file row",
-				fmt.Errorf("repository.GetFilesBySessionID scan session=%s: %w", sessionID, err),
+				fmt.Errorf("repository.GetFilesBySessionID scan: %w", err),
 			)
 		}
 		files = append(files, f)
 	}
-
 	if err := rows.Err(); err != nil {
-		return models.GetPrintJobByTokenResponse{}, apperror.Internal(
-			"error iterating file rows",
-			fmt.Errorf("repository.GetFilesBySessionID rows.Err session=%s: %w", sessionID, err),
+		return nil, apperror.Internal(
+			"error reading file rows",
+			fmt.Errorf("repository.GetFilesBySessionID rows.Err: %w", err),
 		)
 	}
+	return files, nil
+}
 
-	return models.GetPrintJobByTokenResponse{Files: files}, nil
+//Token lookup 
+func (r *PostgresFileRepo) GetSessionByToken(ctx context.Context, token string) (models.UploadSession, error) {
+	const query = `
+		SELECT id, user_id, user_email, status, token, total_amount, total_sheets, expires_at, created_at
+		FROM upload_sessions
+		WHERE token = $1
+	`
+	var s models.UploadSession
+	err := r.db.QueryRowContext(ctx, query, token).Scan(
+		&s.ID,
+		&s.UserID,
+		&s.UserEmail,
+		&s.Status,
+		&s.Token,
+		&s.TotalAmount,
+		&s.TotalSheets,
+		&s.ExpiresAt,
+		&s.CreatedAt,
+	)
+	if err == sql.ErrNoRows {
+		// Return a generic message — do not reveal whether the token
+		// exists or the session is in a different state.
+		return models.UploadSession{}, apperror.NotFound(
+			"invalid_token",
+			"the token you entered is invalid",
+		)
+	}
+	if err != nil {
+		return models.UploadSession{}, apperror.Internal(
+			"failed to fetch session by token",
+			fmt.Errorf("repository.GetSessionByToken: %w", err),
+		)
+	}
+	return s, nil
 }

@@ -69,6 +69,18 @@ func FinalKey(stagingkey string) string {
 	return strings.Replace(stagingkey, stagingPrefix+"/", finalPrefix+"/", 1)
 }
 
+// PresignGet generates a presigned GET URL for reading a file from S3.
+func (c *Client) PresignGet(ctx context.Context, key string) (string, error) {
+	req, err := c.presign.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(key),
+	}, s3.WithPresignExpires(presignExpiry))
+	if err != nil {
+		return "", fmt.Errorf("failed to presign get for key %s: %w", key, err)
+	}
+	return req.URL, nil
+}
+
 // generates staging presigned url
 func (c *Client) PresignPut(ctx context.Context, stagingKey string) (string, error) {
 	req, err := c.presign.PresignPutObject(ctx, &s3.PutObjectInput{
@@ -92,7 +104,6 @@ func (c *Client) FileExists(ctx context.Context, key string) (bool, error) {
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		// Check if it's specifically a 404 Not Found
 		var notFound *types.NotFound
 		if errors.As(err, &notFound) {
 			return false, nil // file doesn't exist — not an error
@@ -103,9 +114,8 @@ func (c *Client) FileExists(ctx context.Context, key string) (bool, error) {
 		if errors.As(err, &apiErr) {
 			code := apiErr.ErrorCode()
 			if code == "NoSuchKey" || code == "NotFound" {
-				return false, nil // file doesn't exist — not an error
+				return false, nil 
 			}
-			// 403 or anything else is a real error
 			return false, fmt.Errorf("failed to head object %s: %w", key, err)
 		}
 

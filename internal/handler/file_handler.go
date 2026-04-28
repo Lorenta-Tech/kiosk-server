@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/Lorenta-Tech/kiosk-server/internal/models"
 	"github.com/Lorenta-Tech/kiosk-server/internal/service"
@@ -24,17 +26,19 @@ func NewFileHandler(fileservice *service.FileService, logger *slog.Logger) *File
 //
 //	@Summary      Initialise a file upload session
 //	@Description  Creates an upload session and returns presigned S3 PUT URLs
-//	              for each file. The client uploads files directly to S3 using
-//	              these URLs, then calls POST /files/upload/confirm.
+//	              for each file. Also returns a 6-digit token the user can
+//	              enter at a kiosk to retrieve their job.
 //	@Tags         uploads
 //	@Accept       json
 //	@Produce      json
-//	@Param        body  body      models.InitUploadRequest   true  "Files to upload"
+//	@Param        body  body      models.InitUploadRequest  true  "Files to upload"
 //	@Success      201   {object}  models.InitUploadResponse
 //	@Failure      400   {object}  utils.Envelope
 //	@Failure      500   {object}  utils.Envelope
 //	@Router       /files/upload/init [post]
 func (fh *FileHandler) HandleInitFileUpload(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
 
 	req, err := utils.DecodeJSON[models.InitUploadRequest](r)
 	if err != nil {
@@ -47,28 +51,27 @@ func (fh *FileHandler) HandleInitFileUpload(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// TODO: replace with real values once auth middleware is wired.
-	userID := "8473e7f9-2c72-4baf-b861-cd8238b15af6"
-	userEmail := "suhas@test.com"
+	// TODO: replace with auth middleware values
+	// userID    := r.Context().Value(middlewares.UserIDKey).(string)
+	// userEmail := r.Context().Value(middlewares.UserEmailKey).(string)
+	userID    := "8473e7f9-2c72-4baf-b861-cd8238b15af6"
+	userEmail := "hardcoded@email.com"
 
-	resp, err := fh.fileservice.InitUpload(r.Context(), userID, userEmail, req)
+	resp, err := fh.fileservice.InitUpload(ctx, userID, userEmail, req)
 	if err != nil {
 		utils.HandleError(w, fh.logger, err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{
-		"data": resp,
-	})
+	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"data": resp})
 }
+
 // HandleConfirmFileUpload godoc
 //
 //	@Summary      Confirm uploaded files and set print options
 //	@Description  Called after files are uploaded directly to S3.
 //	              Verifies each file exists in S3 staging, saves print options,
 //	              calculates the total price, and moves the session to "priced".
-//	              The response contains the per-file price breakdown and the
-//	              total amount to charge — use this to create the Razorpay order.
 //	@Tags         uploads
 //	@Accept       json
 //	@Produce      json
@@ -79,42 +82,77 @@ func (fh *FileHandler) HandleInitFileUpload(w http.ResponseWriter, r *http.Reque
 //	@Failure      500   {object}  utils.Envelope
 //	@Router       /files/upload/confirm [post]
 func (fh *FileHandler) HandleConfirmFileUpload(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
 	req, err := utils.DecodeJSON[models.ConfirmUploadRequest](r)
 	if err != nil {
 		utils.HandleError(w, fh.logger, err)
 		return
 	}
- 
+
 	if err := validator.Validate(req); err != nil {
 		utils.HandleError(w, fh.logger, apperror.BadRequest("validation_error", err.Error()))
 		return
 	}
- 
-	resp, err := fh.fileservice.ConfirmUpload(r.Context(), req)
+
+	resp, err := fh.fileservice.ConfirmUpload(ctx, req)
 	if err != nil {
 		utils.HandleError(w, fh.logger, err)
 		return
 	}
- 
+
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
 }
-// GetPrintJobByToken godoc
+
+// HandleGetRecentPrintJobs godoc
 //
-//	@Summary      Get print job files by token
-//	@Description  Fetches all files associated with a completed upload session
-//	              identified by a 6-digit token. The session must be in "completed"
-//	              status and must not have expired.
-//	@Tags         uploads
+//	@Summary      Get recent print jobs for the current user
+//	@Description  Returns the last 10 print jobs for the authenticated user.
+//	              Jobs with status "created" are excluded.
+//	@Tags         jobs
+//	@Produce      json
+//	@Success      200  {object}  models.RecentPrintJobsResponse
+//	@Failure      500  {object}  utils.Envelope
+//	@Router       /files/jobs/recent [get]
+func (fh *FileHandler) HandleGetRecentPrintJobs(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	// TODO: replace with auth middleware value
+	// userID := r.Context().Value(middlewares.UserIDKey).(string)
+	userID := "8473e7f9-2c72-4baf-b861-cd8238b15af6"
+
+	resp, err := fh.fileservice.GetRecentPrintJobs(ctx, userID)
+	if err != nil {
+		utils.HandleError(w, fh.logger, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
+}
+
+// HandleGetJobByToken godoc
+//
+//	@Summary      Retrieve a print job by 6-digit token
+//	@Description  The kiosk calls this with the token the user entered.
+//	              Returns the full print job only if the session is in
+//	              "priced" status and has not expired. Any other status
+//	              returns a clear error message telling the user what to do.
+//	@Tags         jobs
 //	@Accept       json
 //	@Produce      json
-//	@Param        body  body      models.Token  true  "6-digit session token"
-//	@Success      200   {object}  models.GetPrintJobByTokenResponse
+//	@Param        body  body      models.GetJobByTokenRequest  true  "6-digit token"
+//	@Success      200   {object}  models.TokenJobResponse
 //	@Failure      400   {object}  utils.Envelope
 //	@Failure      404   {object}  utils.Envelope
 //	@Failure      500   {object}  utils.Envelope
-//	@Router       /files/print-job [post]
-func (fh *FileHandler) GetPrintJobByToken(w http.ResponseWriter, r *http.Request) {
-	req, err := utils.DecodeJSON[models.Token](r)
+//	@Router       /files/jobs/token [post]
+func (fh *FileHandler) HandleGetJobByToken(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	req, err := utils.DecodeJSON[models.GetJobByTokenRequest](r)
 	if err != nil {
 		utils.HandleError(w, fh.logger, err)
 		return
@@ -125,7 +163,7 @@ func (fh *FileHandler) GetPrintJobByToken(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	resp, err := fh.fileservice.GetPrintJobByToken(r.Context(), req.Token)
+	resp, err := fh.fileservice.GetJobByToken(ctx, req)
 	if err != nil {
 		utils.HandleError(w, fh.logger, err)
 		return

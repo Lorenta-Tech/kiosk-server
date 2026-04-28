@@ -31,19 +31,20 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 	})
 
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.Timeout(30*time.Second))
+		r.Use(middleware.Timeout(30 * time.Second))
 		r.Get("/health", app.HealthCheck)
 		r.Get("/swagger/*", httpSwagger.WrapHandler)
-		fileRoutes(app,r)
+		fileRoutes(app, r)
 	})
-	
+
 	return r
 }
 
-func fileRoutes(app *app.Application,r chi.Router){
-	r.Route("/files",func(r chi.Router) {
-		r.Post("/upload/init",app.FileHandler.HandleInitFileUpload)
-		r.Post("/upload/confirm",app.FileHandler.HandleConfirmFileUpload)
-		r.Get("/files/session/token",app.FileHandler.GetPrintJobByToken)
+func fileRoutes(app *app.Application, r chi.Router) {
+	r.Route("/files", func(r chi.Router) {
+		r.Post("/upload/init", app.FileHandler.HandleInitFileUpload)
+		r.Post("/upload/confirm", app.FileHandler.HandleConfirmFileUpload)
+		r.Get("/jobs/recent", app.FileHandler.HandleGetRecentPrintJobs)
+		r.Get("/printjob/token", app.FileHandler.HandleGetJobByToken)
 	})
 }

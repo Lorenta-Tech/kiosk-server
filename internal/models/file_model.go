@@ -16,7 +16,7 @@ type ConfirmFileRequest struct {
 	Copies       int      `json:"copies"        validate:"required,min=1"`
 	PrintingSide string   `json:"printing_side" validate:"required,oneof=single_side double_side"`
 	PrintingMode string   `json:"printing_mode" validate:"required,oneof=monochromatic color"`
-	PageRange    []string `json:"page_range"    validate:"required"`
+	PageRange    []string `json:"page_range"    validate:"required,min=1"`
 	PageLayout   int      `json:"page_layout"   validate:"required,min=1"`
 	NumOfPages   int      `json:"num_of_pages"  validate:"required,min=1"`
 }
@@ -26,36 +26,44 @@ type ConfirmUploadRequest struct {
 	Files     []ConfirmFileRequest `json:"files"      validate:"required,min=1,dive"`
 }
 
-type UploadSession struct {
-	ID        string
-	UserID    string
-	UserEmail string
-	Status    string
-	Token     string
-	ExpiresAt time.Time
-	CreatedAt time.Time
+
+type GetJobByTokenRequest struct {
+	Token int `json:"token" validate:"required,min=100000,max=999999"`
 }
 
-type Token struct {
-	Token string `json:"token" validate:"required,numeric,len=6"`
+//DB rows 
+
+type UploadSession struct {
+	ID          string
+	UserID      string
+	UserEmail   string
+	Status      string
+	Token       string   
+	TotalAmount *float64
+	TotalSheets *int
+	ExpiresAt   time.Time
+	CreatedAt   time.Time
 }
-// Print option fields are pointer types because they start as NULL
+
 type UploadFile struct {
 	ID            string
 	SessionID     string
 	FileName      string
 	StagingKey    string
-	FinalKey      *string  // NULL until promoted after payment
-	PrintingMode  *string  // set during confirm
-	PrintingSide  *string  // set during confirm
-	PageRange     *[]string  // set during confirm
-	PageLayout    *int     // set during confirm
-	Copies        *int     // set during confirm
-	NumberOfPages *int     // set during confirm
-	Price         *float64 // calculated during confirm
+	FinalKey      *string
+	PrintingMode  *string
+	PrintingSide  *string
+	PageRange     []string
+	PageLayout    *int
+	Copies        *int
+	NumberOfPages *int
+	Price         *float64
 	FileStatus    string
 	CreatedAt     time.Time
 }
+
+// Init response 
+
 type InitFileResponse struct {
 	FileID     string `json:"file_id"`
 	FileName   string `json:"file_name"`
@@ -65,9 +73,12 @@ type InitFileResponse struct {
 
 type InitUploadResponse struct {
 	SessionID string             `json:"session_id"`
+	Token     int                `json:"token"`     
 	ExpiresAt time.Time          `json:"expires_at"`
 	Files     []InitFileResponse `json:"files"`
 }
+
+// Confirm response
 
 type ConfirmFileResponse struct {
 	FileID     string  `json:"file_id"`
@@ -85,6 +96,43 @@ type ConfirmUploadResponse struct {
 	TotalAmount float64               `json:"total_amount"`
 }
 
-type GetPrintJobByTokenResponse struct{
-	Files []UploadFile  `json:"files"`
+// Shared file shape 
+
+// PrintJobFile is the safe public shape of a file.
+// DownloadURL is only populated for the token lookup route —
+
+type PrintJobFile struct {
+	FileID        string   `json:"file_id"`
+	FileName      string   `json:"file_name"`
+	PrintingMode  *string  `json:"printing_mode"`
+	PrintingSide  *string  `json:"printing_side"`
+	PageRange     []string `json:"page_range"`
+	PageLayout    *int     `json:"page_layout"`
+	Copies        *int     `json:"copies"`
+	NumberOfPages *int     `json:"number_of_pages"`
+	Price         *float64 `json:"price"`
+	FileStatus    string   `json:"file_status"`
+	DownloadURL   *string  `json:"download_url,omitempty"` // only set for token lookup
+}
+
+// PrintJob is one session with its files.
+type PrintJob struct {
+	SessionID   string         `json:"session_id"`
+	Status      string         `json:"status"`
+	TotalAmount *float64       `json:"total_amount"`
+	TotalSheets *int           `json:"total_sheets"`
+	CreatedAt   time.Time      `json:"created_at"`
+	Files       []PrintJobFile `json:"files"`
+}
+
+//Recent print jobs response
+
+type RecentPrintJobsResponse struct {
+	Jobs  []PrintJob `json:"jobs"`
+	Total int        `json:"total"`
+}
+
+//Token lookup response 
+type TokenJobResponse struct {
+	Job PrintJob `json:"job"`
 }
