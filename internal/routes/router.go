@@ -14,7 +14,7 @@ import (
 func SetupRoutes(app *app.Application) *chi.Mux {
 	r := chi.NewRouter()
 
-	// Global Middlwares
+	// Global middlewares
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middlewares.RequestLoggerMiddleware(app.Logger))
@@ -22,7 +22,6 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 	r.Use(middlewares.CORSMiddleware)
 	r.Use(middleware.RequestSize(5 << 20))
 
-	//response headers
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("X-Request-ID", middleware.GetReqID(r.Context()))
@@ -34,17 +33,26 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 		r.Use(middleware.Timeout(30 * time.Second))
 		r.Get("/health", app.HealthCheck)
 		r.Get("/swagger/*", httpSwagger.WrapHandler)
+		authRoutes(app, r)
 		fileRoutes(app, r)
 	})
 
 	return r
 }
 
+func authRoutes(app *app.Application, r chi.Router) {
+	r.Route("/auth", func(r chi.Router) {
+		r.Post("/google", app.UserHandler.HandleGoogleAuth)
+	})
+}
+
 func fileRoutes(app *app.Application, r chi.Router) {
+	//public routes
+	r.Post("/print/jobs/token", app.FileHandler.HandleGetJobByToken)
 	r.Route("/files", func(r chi.Router) {
+		r.Use(middlewares.AuthMiddleware(app.JWTSecret))
 		r.Post("/upload/init", app.FileHandler.HandleInitFileUpload)
 		r.Post("/upload/confirm", app.FileHandler.HandleConfirmFileUpload)
 		r.Get("/jobs/recent", app.FileHandler.HandleGetRecentPrintJobs)
-		r.Get("/printjob/token", app.FileHandler.HandleGetJobByToken)
 	})
 }

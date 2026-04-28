@@ -309,7 +309,7 @@ func (fs *FileService) GetRecentPrintJobs(
 		fs.logger.Info("no print jobs found", "user_id", userID)
 		return models.RecentPrintJobsResponse{Jobs: []models.PrintJob{}, Total: 0}, nil
 	}
-
+ 
 	jobs, err := fs.buildPrintJobs(ctx, sessions)
 	if err != nil {
 		return models.RecentPrintJobsResponse{}, err

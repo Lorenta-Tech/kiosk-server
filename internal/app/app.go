@@ -24,6 +24,8 @@ type Application struct {
 	Logger      *slog.Logger
 	S3          *s3.Client
 	FileHandler *handler.FileHandler
+	UserHandler *handler.UserHandler
+	JWTSecret   string
 }
 
 func NewApplication() (*Application, error) {
@@ -33,6 +35,12 @@ func NewApplication() (*Application, error) {
 		"DATABASE_USER",
 		"DATABASE_NAME",
 		"DATABASE_PASSWORD",
+		"REGION",
+		"ACCESS_KEY",
+		"SECRETE_KEY",
+		"BUCKET",
+		"JWT_SECRET",
+		"GOOGLE_CLIENT_ID",
 	); err != nil {
 		return nil, err
 	}
@@ -66,20 +74,26 @@ func NewApplication() (*Application, error) {
 
 	logger.Info("s3 client initialized", "bucket", env.GetString("BUCKET", "aiet-printflow-upload-prod"))
 
-	//repositories
+	jwtSecret := env.GetString("JWT_SECRET", "")
+	googleClientID := env.GetString("GOOGLE_CLIENT_ID", "")
+
+	// File feature
 	filerepo := repository.NewFileRepository(pgdb)
-
-	//services
-	fileservice := service.NewFileService(filerepo,s3Client,pgdb,logger)
-
-	//handlers
+	fileservice := service.NewFileService(filerepo, s3Client, pgdb, logger)
 	fileHandler := handler.NewFileHandler(fileservice, logger)
 
+	// User / Auth feature
+	userrepo := repository.NewUserRepository(pgdb)
+	userservice := service.NewUserService(userrepo, logger, jwtSecret, googleClientID)
+	userHandler := handler.NewUserHandler(userservice, logger)
+
 	app := &Application{
-		DB:     pgdb,
-		Logger: logger,
-		S3:     s3Client,
+		DB:          pgdb,
+		Logger:      logger,
+		S3:          s3Client,
 		FileHandler: fileHandler,
+		UserHandler: userHandler,
+		JWTSecret:   jwtSecret,
 	}
 
 	return app, nil
