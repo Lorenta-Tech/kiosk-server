@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/Lorenta-Tech/kiosk-server/docs"
 	"github.com/Lorenta-Tech/kiosk-server/internal/app"
 	"github.com/Lorenta-Tech/kiosk-server/internal/env"
 	"github.com/Lorenta-Tech/kiosk-server/internal/routes"

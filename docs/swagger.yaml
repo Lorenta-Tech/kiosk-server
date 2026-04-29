@@ -1,0 +1,372 @@
+definitions:
+  models.AuthResponse:
+    properties:
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/models.UserInfo'
+    type: object
+  models.ConfirmFileRequest:
+    properties:
+      copies:
+        minimum: 1
+        type: integer
+      file_id:
+        type: string
+      num_of_pages:
+        minimum: 1
+        type: integer
+      page_layout:
+        minimum: 1
+        type: integer
+      page_range:
+        items:
+          type: string
+        minItems: 1
+        type: array
+      printing_mode:
+        enum:
+        - monochromatic
+        - color
+        type: string
+      printing_side:
+        enum:
+        - single_side
+        - double_side
+        type: string
+    required:
+    - copies
+    - file_id
+    - num_of_pages
+    - page_layout
+    - page_range
+    - printing_mode
+    - printing_side
+    type: object
+  models.ConfirmFileResponse:
+    properties:
+      copies:
+        type: integer
+      file_id:
+        type: string
+      file_name:
+        type: string
+      num_of_pages:
+        type: integer
+      price:
+        type: number
+    type: object
+  models.ConfirmUploadRequest:
+    properties:
+      files:
+        items:
+          $ref: '#/definitions/models.ConfirmFileRequest'
+        minItems: 1
+        type: array
+      session_id:
+        type: string
+    required:
+    - files
+    - session_id
+    type: object
+  models.ConfirmUploadResponse:
+    properties:
+      files:
+        items:
+          $ref: '#/definitions/models.ConfirmFileResponse'
+        type: array
+      session_id:
+        type: string
+      status:
+        type: string
+      total_amount:
+        type: number
+      total_sheets:
+        type: integer
+    type: object
+  models.GetJobByTokenRequest:
+    properties:
+      token:
+        maximum: 999999
+        minimum: 100000
+        type: integer
+    required:
+    - token
+    type: object
+  models.GoogleAuthRequest:
+    properties:
+      id_token:
+        type: string
+    required:
+    - id_token
+    type: object
+  models.InitFileRequest:
+    properties:
+      content_type:
+        enum:
+        - application/pdf
+        type: string
+      file_name:
+        type: string
+    required:
+    - content_type
+    - file_name
+    type: object
+  models.InitFileResponse:
+    properties:
+      file_id:
+        type: string
+      file_name:
+        type: string
+      staging_key:
+        type: string
+      upload_url:
+        type: string
+    type: object
+  models.InitUploadRequest:
+    properties:
+      files:
+        items:
+          $ref: '#/definitions/models.InitFileRequest'
+        minItems: 1
+        type: array
+    required:
+    - files
+    type: object
+  models.InitUploadResponse:
+    properties:
+      expires_at:
+        type: string
+      files:
+        items:
+          $ref: '#/definitions/models.InitFileResponse'
+        type: array
+      session_id:
+        type: string
+      token:
+        type: integer
+    type: object
+  models.PrintJob:
+    properties:
+      created_at:
+        type: string
+      files:
+        items:
+          $ref: '#/definitions/models.PrintJobFile'
+        type: array
+      session_id:
+        type: string
+      status:
+        type: string
+      total_amount:
+        type: number
+      total_sheets:
+        type: integer
+    type: object
+  models.PrintJobFile:
+    properties:
+      copies:
+        type: integer
+      download_url:
+        description: only set for token lookup
+        type: string
+      file_id:
+        type: string
+      file_name:
+        type: string
+      file_status:
+        type: string
+      number_of_pages:
+        type: integer
+      page_layout:
+        type: integer
+      page_range:
+        items:
+          type: string
+        type: array
+      price:
+        type: number
+      printing_mode:
+        type: string
+      printing_side:
+        type: string
+    type: object
+  models.RecentPrintJobsResponse:
+    properties:
+      jobs:
+        items:
+          $ref: '#/definitions/models.PrintJob'
+        type: array
+      total:
+        type: integer
+    type: object
+  models.TokenJobResponse:
+    properties:
+      job:
+        $ref: '#/definitions/models.PrintJob'
+    type: object
+  models.UserInfo:
+    properties:
+      email:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+    type: object
+  utils.Envelope:
+    additionalProperties: {}
+    type: object
+info:
+  contact: {}
+paths:
+  /auth/google:
+    post:
+      consumes:
+      - application/json
+      description: Accepts a Google ID token from the frontend (obtained after
+      parameters:
+      - description: Google ID token
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.GoogleAuthRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.AuthResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Envelope'
+      summary: Authenticate with Google OAuth
+      tags:
+      - auth
+  /files/jobs/recent:
+    get:
+      description: Returns the last 10 print jobs for the authenticated user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.RecentPrintJobsResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Envelope'
+      summary: Get recent print jobs for the current user
+      tags:
+      - jobs
+  /files/jobs/token:
+    post:
+      consumes:
+      - application/json
+      description: The kiosk calls this with the token the user entered.
+      parameters:
+      - description: 6-digit token
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.GetJobByTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.TokenJobResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Envelope'
+      summary: Retrieve a print job by 6-digit token
+      tags:
+      - jobs
+  /files/upload/confirm:
+    post:
+      consumes:
+      - application/json
+      description: Called after files are uploaded directly to S3.
+      parameters:
+      - description: Print options per file
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.ConfirmUploadRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ConfirmUploadResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Envelope'
+      summary: Confirm uploaded files and set print options
+      tags:
+      - uploads
+  /files/upload/init:
+    post:
+      consumes:
+      - application/json
+      description: Creates an upload session and returns presigned S3 PUT URLs
+      parameters:
+      - description: Files to upload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.InitUploadRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.InitUploadResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/utils.Envelope'
+      summary: Initialise a file upload session
+      tags:
+      - uploads
+swagger: "2.0"
