@@ -107,6 +107,7 @@ func (a *Application) HealthCheck(w http.ResponseWriter, r *http.Request) {
 			"status": "unhealthy",
 			"db":     "unreachable",
 		})
+		return
 	}
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{
