@@ -20,12 +20,13 @@ import (
 )
 
 type Application struct {
-	DB          *sql.DB
-	Logger      *slog.Logger
-	S3          *s3.Client
-	FileHandler *handler.FileHandler
-	UserHandler *handler.UserHandler
-	JWTSecret   string
+	DB             *sql.DB
+	Logger         *slog.Logger
+	S3             *s3.Client
+	FileHandler    *handler.FileHandler
+	UserHandler    *handler.UserHandler
+	PaymentHandler *handler.PaymentHandler
+	JWTSecret      string
 }
 
 func NewApplication() (*Application, error) {
@@ -41,6 +42,9 @@ func NewApplication() (*Application, error) {
 		"BUCKET",
 		"JWT_SECRET",
 		"GOOGLE_CLIENT_ID",
+		"RZP_KEY",
+		"RZP_SECRET",
+		"RZP_WEBHOOK_SECRET",
 	); err != nil {
 		return nil, err
 	}
@@ -76,6 +80,9 @@ func NewApplication() (*Application, error) {
 
 	jwtSecret := env.GetString("JWT_SECRET", "")
 	googleClientID := env.GetString("GOOGLE_CLIENT_ID", "")
+	razorpayKey := env.GetString("RZP_KEY", "")
+	razorpaySecret := env.GetString("RZP_SECRET", "")
+	webhookSecret := env.GetString("RZP_WEBHOOK_SECRET", "")
 
 	// File feature
 	filerepo := repository.NewFileRepository(pgdb)
@@ -87,13 +94,19 @@ func NewApplication() (*Application, error) {
 	userservice := service.NewUserService(userrepo, logger, jwtSecret, googleClientID)
 	userHandler := handler.NewUserHandler(userservice, logger)
 
+	// Payment feature
+	paymentRepo := repository.NewPaymentRepository(pgdb)
+	paymentService := service.NewPaymentService(paymentRepo, filerepo, pgdb, s3Client, logger, razorpayKey, razorpaySecret, webhookSecret)
+	paymentHandler := handler.NewPaymentHandler(paymentService, logger)
+
 	app := &Application{
-		DB:          pgdb,
-		Logger:      logger,
-		S3:          s3Client,
-		FileHandler: fileHandler,
-		UserHandler: userHandler,
-		JWTSecret:   jwtSecret,
+		DB:             pgdb,
+		Logger:         logger,
+		S3:             s3Client,
+		FileHandler:    fileHandler,
+		UserHandler:    userHandler,
+		JWTSecret:      jwtSecret,
+		PaymentHandler: paymentHandler,
 	}
 
 	return app, nil

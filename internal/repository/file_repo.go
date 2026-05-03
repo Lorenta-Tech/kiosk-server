@@ -10,37 +10,39 @@ import (
 	"github.com/lib/pq"
 )
 
-// DBTX 
+// DBTX
 type DBTX interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
-// Interface 
+// Interface
 
 type FileRepo interface {
 	WithTx(tx *sql.Tx) FileRepo
 
-	// Init 
+	// Init
 	CreateSession(ctx context.Context, session models.UploadSession) error
 	CreateFiles(ctx context.Context, files []models.UploadFile) error
 
-	// Confirm 
+	// Confirm
 	GetSessionByID(ctx context.Context, sessionID string) (models.UploadSession, error)
 	GetFileByID(ctx context.Context, fileID, sessionID string) (models.UploadFile, error)
 	UpdateFileWithPrintOptions(ctx context.Context, file models.UploadFile) error
 	UpdateSessionPriced(ctx context.Context, sessionID string, totalAmount float64, totalSheets int) error
 
-	// Recent print jobs 
+	// Recent print jobs
 	GetRecentPrintJobs(ctx context.Context, userID string, limit int) ([]models.UploadSession, error)
 	GetFilesBySessionID(ctx context.Context, sessionID string) ([]models.UploadFile, error)
 
 	// Token lookup
 	GetSessionByToken(ctx context.Context, token string) (models.UploadSession, error)
+	MarkFilePromoted(ctx context.Context, fileID, finalKey string) error
+	UpdateSessionPaid(ctx context.Context, sessionID string) error
 }
 
-// Implementation 
+// Implementation
 type PostgresFileRepo struct {
 	db DBTX
 }
@@ -53,7 +55,7 @@ func (r *PostgresFileRepo) WithTx(tx *sql.Tx) FileRepo {
 	return &PostgresFileRepo{db: tx}
 }
 
-//Init 
+// Init
 func (r *PostgresFileRepo) CreateSession(ctx context.Context, session models.UploadSession) error {
 	const query = `
 		INSERT INTO upload_sessions (id, user_id, user_email, status, token, expires_at)
@@ -94,7 +96,7 @@ func (r *PostgresFileRepo) CreateFiles(ctx context.Context, files []models.Uploa
 	return nil
 }
 
-//Confirm 
+// Confirm
 func (r *PostgresFileRepo) GetSessionByID(ctx context.Context, sessionID string) (models.UploadSession, error) {
 	const query = `
 		SELECT id, user_id, user_email, status, token, expires_at, created_at
@@ -280,7 +282,7 @@ func (r *PostgresFileRepo) GetFilesBySessionID(ctx context.Context, sessionID st
 	return files, nil
 }
 
-//Token lookup 
+// Token lookup
 func (r *PostgresFileRepo) GetSessionByToken(ctx context.Context, token string) (models.UploadSession, error) {
 	const query = `
 		SELECT id, user_id, user_email, status, token, total_amount, total_sheets, expires_at, created_at
@@ -314,4 +316,38 @@ func (r *PostgresFileRepo) GetSessionByToken(ctx context.Context, token string) 
 		)
 	}
 	return s, nil
+}
+
+// MarkFilePromoted sets final_key and file_status="promoted" after S3 promotion.
+func (r *PostgresFileRepo) MarkFilePromoted(ctx context.Context, fileID, finalKey string) error {
+	const query = `
+		UPDATE upload_files
+		SET final_key = $1, file_status = 'promoted'
+		WHERE id = $2
+	`
+	_, err := r.db.ExecContext(ctx, query, finalKey, fileID)
+	if err != nil {
+		return apperror.Internal(
+			"failed to mark file promoted",
+			fmt.Errorf("repository.MarkFilePromoted file=%s: %w", fileID, err),
+		)
+	}
+	return nil
+}
+ 
+// UpdateSessionPaid sets status="paid" on an upload_sessions row.
+func (r *PostgresFileRepo) UpdateSessionPaid(ctx context.Context, sessionID string) error {
+	const query = `
+		UPDATE upload_sessions
+		SET status = 'paid'
+		WHERE id = $1
+	`
+	_, err := r.db.ExecContext(ctx, query, sessionID)
+	if err != nil {
+		return apperror.Internal(
+			"failed to mark session paid",
+			fmt.Errorf("repository.UpdateSessionPaid session=%s: %w", sessionID, err),
+		)
+	}
+	return nil
 }

@@ -56,3 +56,17 @@ func fileRoutes(app *app.Application, r chi.Router) {
 		r.Get("/jobs/recent", app.FileHandler.HandleGetRecentPrintJobs)
 	})
 }
+
+
+func paymentRoutes(app *app.Application, r chi.Router) {
+	// POST /payments/create — protected, user must be logged in
+	r.Route("/payments", func(r chi.Router) {
+		r.Use(middlewares.AuthMiddleware(app.JWTSecret))
+		r.Post("/create", app.PaymentHandler.HandleCreateOrder)
+	})
+ 
+	// POST /webhooks/razorpay — PUBLIC, called by Razorpay server-to-server.
+	// Must NOT be behind AuthMiddleware — Razorpay has no JWT.
+	// Security is HMAC-SHA256 signature verification inside the handler.
+	r.Post("/webhooks/razorpay", app.PaymentHandler.HandleWebhook)
+}
