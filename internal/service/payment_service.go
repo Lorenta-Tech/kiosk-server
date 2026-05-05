@@ -57,16 +57,6 @@ func NewPaymentService(
 	}
 }
 
-// CreateOrder
-
-// CreateOrder is called after /upload/confirm.
-//
-// Flow:
-//  1. Fetch the session and validate it is in "priced" status
-//  2. Validate frontend amount matches DB amount (tamper prevention)
-//  3. Call Razorpay Orders API to create an order
-//  4. Persist a payments row with status="created"
-//  5. Return the Razorpay order details to the frontend
 func (ps *PaymentService) CreateOrder(
 	ctx context.Context,
 	req models.CreatePaymentRequest,
@@ -169,8 +159,6 @@ func (ps *PaymentService) HandleWebhook(r *http.Request) error {
 	}
 
 	//  Verify HMAC-SHA256 signature
-	// Razorpay signs the raw body with the webhook secret you set in the dashboard.
-	// X-Razorpay-Signature header contains the hex digest.
 	signature := r.Header.Get("X-Razorpay-Signature")
 	if !ps.verifyWebhookSignature(rawBody, signature) {
 		ps.logger.Warn("webhook signature verification failed",
@@ -203,7 +191,6 @@ func (ps *PaymentService) HandleWebhook(r *http.Request) error {
 }
 
 // handlePaymentSuccess
-
 func (ps *PaymentService) handlePaymentSuccess(ctx context.Context, payload models.RazorpayWebhookPayload) error {
 	if payload.Payload.Payment == nil {
 		return apperror.Internal("payment.captured event missing payment entity", nil)
