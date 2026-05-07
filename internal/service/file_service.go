@@ -190,29 +190,29 @@ func (fs *FileService) ConfirmUpload(
 			return models.ConfirmUploadResponse{}, err
 		}
 
-		exists, err := fs.s3.FileExists(ctx, dbFile.StagingKey)
-		if err != nil {
-			fs.logger.Error("s3 existence check failed",
-				"session_id", req.SessionID,
-				"file_id", f.FileID,
-				"staging_key", dbFile.StagingKey,
-				"error", err,
-			)
-			return models.ConfirmUploadResponse{}, apperror.Internal(
-				"failed to verify file upload status", err,
-			)
-		}
-		if !exists {
-			fs.logger.Warn("file not found in s3 staging",
-				"session_id", req.SessionID,
-				"file_id", f.FileID,
-				"staging_key", dbFile.StagingKey,
-			)
-			return models.ConfirmUploadResponse{}, apperror.BadRequest(
-				"file_not_uploaded",
-				fmt.Sprintf("file %s was not found in storage, please re-upload", dbFile.FileName),
-			)
-		}
+		// exists, err := fs.s3.FileExists(ctx, dbFile.StagingKey)
+		// if err != nil {
+		// 	fs.logger.Error("s3 existence check failed",
+		// 		"session_id", req.SessionID,
+		// 		"file_id", f.FileID,
+		// 		"staging_key", dbFile.StagingKey,
+		// 		"error", err,
+		// 	)
+		// 	return models.ConfirmUploadResponse{}, apperror.Internal(
+		// 		"failed to verify file upload status", err,
+		// 	)
+		// }
+		// if !exists {
+		// 	fs.logger.Warn("file not found in s3 staging",
+		// 		"session_id", req.SessionID,
+		// 		"file_id", f.FileID,
+		// 		"staging_key", dbFile.StagingKey,
+		// 	)
+		// 	return models.ConfirmUploadResponse{}, apperror.BadRequest(
+		// 		"file_not_uploaded",
+		// 		fmt.Sprintf("file %s was not found in storage, please re-upload", dbFile.FileName),
+		// 	)
+		// }
 
 		price, sheets := utils.CalculateFilePrice(
 			f.NumOfPages, f.Copies, f.PageLayout,

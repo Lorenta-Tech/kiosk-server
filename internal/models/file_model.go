@@ -4,7 +4,7 @@ import "time"
 
 type InitFileRequest struct {
 	FileName    string `json:"file_name"    validate:"required"`
-	ContentType string `json:"content_type" validate:"required,oneof=application/pdf,image.jpeg image.png"`
+	ContentType string `json:"content_type" validate:"required,oneof=application/pdf"`
 }
 
 type InitUploadRequest struct {

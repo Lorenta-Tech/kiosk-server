@@ -99,14 +99,14 @@ func (r *PostgresFileRepo) CreateFiles(ctx context.Context, files []models.Uploa
 // Confirm
 func (r *PostgresFileRepo) GetSessionByID(ctx context.Context, sessionID string) (models.UploadSession, error) {
 	const query = `
-		SELECT id, user_id, user_email, status, token, expires_at, created_at
+		SELECT id, user_id, user_email, status, token, total_amount, expires_at, created_at
 		FROM upload_sessions
 		WHERE id = $1
 	`
 	var s models.UploadSession
 	err := r.db.QueryRowContext(ctx, query, sessionID).Scan(
 		&s.ID, &s.UserID, &s.UserEmail,
-		&s.Status, &s.Token, &s.ExpiresAt, &s.CreatedAt,
+		&s.Status, &s.Token, &s.TotalAmount, &s.ExpiresAt, &s.CreatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return models.UploadSession{}, apperror.NotFound(
@@ -334,7 +334,7 @@ func (r *PostgresFileRepo) MarkFilePromoted(ctx context.Context, fileID, finalKe
 	}
 	return nil
 }
- 
+
 // UpdateSessionPaid sets status="paid" on an upload_sessions row.
 func (r *PostgresFileRepo) UpdateSessionPaid(ctx context.Context, sessionID string) error {
 	const query = `

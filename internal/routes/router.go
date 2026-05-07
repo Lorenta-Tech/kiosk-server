@@ -35,6 +35,7 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 		r.Get("/swagger/*", httpSwagger.WrapHandler)
 		authRoutes(app, r)
 		fileRoutes(app, r)
+		paymentRoutes(app, r)
 	})
 
 	return r
@@ -50,23 +51,15 @@ func fileRoutes(app *app.Application, r chi.Router) {
 	//public routes
 	r.Post("/print/jobs/token", app.FileHandler.HandleGetJobByToken)
 	r.Route("/files", func(r chi.Router) {
-		r.Use(middlewares.AuthMiddleware(app.JWTSecret))
 		r.Post("/upload/init", app.FileHandler.HandleInitFileUpload)
 		r.Post("/upload/confirm", app.FileHandler.HandleConfirmFileUpload)
 		r.Get("/jobs/recent", app.FileHandler.HandleGetRecentPrintJobs)
 	})
 }
 
-
 func paymentRoutes(app *app.Application, r chi.Router) {
-	// POST /payments/create — protected, user must be logged in
 	r.Route("/payments", func(r chi.Router) {
-		r.Use(middlewares.AuthMiddleware(app.JWTSecret))
 		r.Post("/create", app.PaymentHandler.HandleCreateOrder)
 	})
- 
-	// POST /webhooks/razorpay — PUBLIC, called by Razorpay server-to-server.
-	// Must NOT be behind AuthMiddleware — Razorpay has no JWT.
-	// Security is HMAC-SHA256 signature verification inside the handler.
 	r.Post("/webhooks/razorpay", app.PaymentHandler.HandleWebhook)
 }

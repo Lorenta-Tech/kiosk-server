@@ -21,7 +21,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// razorpayBaseURL is the Razorpay REST API base.
 const razorpayBaseURL = "https://api.razorpay.com/v1"
 
 type PaymentService struct {
@@ -80,12 +79,12 @@ func (ps *PaymentService) CreateOrder(
 	}
 
 	if session.TotalAmount == nil {
+		ps.logger.Info("Total_Amount:", "amount", session.TotalAmount)
 		return models.CreatePaymentResponse{}, apperror.Internal(
 			"session has no total amount", nil,
 		)
 	}
-	// Convert DB amount (rupees, NUMERIC) to paise for comparison.
-	// This is the tamper check — the frontend cannot send a lower amount.
+
 	dbAmountPaise := rupeeToP(*session.TotalAmount)
 
 	if req.AmountPaise != dbAmountPaise {
@@ -138,19 +137,7 @@ func (ps *PaymentService) CreateOrder(
 	}, nil
 }
 
-// HandleWebhook processes inbound Razorpay webhook events.
-//
-// Security:
-//   - Reads the raw body ONCE before any JSON parsing (signature uses raw bytes)
-//   - Verifies HMAC-SHA256 signature before touching the DB
-//   - Idempotent: if payment already succeeded, returns 200 immediately
-//
-// Events handled:
-//   - payment.captured  → promote files staging→final, mark session paid
-//   - payment.failed    → mark payment failed in DB
-//   - order.paid        → alternate success event, same promotion logic
-//
-// All other events are acknowledged with 200 and ignored.
+
 func (ps *PaymentService) HandleWebhook(r *http.Request) error {
 	//  Read raw body — must happen before any decode
 	rawBody, err := io.ReadAll(r.Body)
@@ -158,7 +145,6 @@ func (ps *PaymentService) HandleWebhook(r *http.Request) error {
 		return apperror.Internal("failed to read webhook body", err)
 	}
 
-	//  Verify HMAC-SHA256 signature
 	signature := r.Header.Get("X-Razorpay-Signature")
 	if !ps.verifyWebhookSignature(rawBody, signature) {
 		ps.logger.Warn("webhook signature verification failed",
@@ -176,7 +162,6 @@ func (ps *PaymentService) HandleWebhook(r *http.Request) error {
 		"event", payload.Event,
 	)
 
-	// Route by event type
 	switch payload.Event {
 	case "payment.captured", "order.paid":
 		return ps.handlePaymentSuccess(r.Context(), payload)
@@ -184,7 +169,6 @@ func (ps *PaymentService) HandleWebhook(r *http.Request) error {
 		return ps.handlePaymentFailed(r.Context(), payload)
 	default:
 		// Acknowledge unknown events — never return non-2xx to Razorpay
-		// or it will retry indefinitely.
 		ps.logger.Info("webhook event ignored", "event", payload.Event)
 		return nil
 	}
@@ -210,9 +194,7 @@ func (ps *PaymentService) handlePaymentSuccess(ctx context.Context, payload mode
 		return err
 	}
 
-	// Idempotency check
-	// Razorpay delivers webhooks with at-least-once semantics.
-	// If we already processed this payment, return success immediately.
+
 	if payment.Status == "success" {
 		ps.logger.Info("duplicate webhook ignored — payment already succeeded",
 			"razorpay_order_id", orderID,
@@ -240,9 +222,6 @@ func (ps *PaymentService) handlePaymentSuccess(ctx context.Context, payload mode
 	}
 
 	//  Promote each file staging → final
-	// All promotions happen before the DB transaction so that if S3 fails,
-	// we don't end up with partial DB state. If promotion partially fails,
-	// the session stays in "priced" and the webhook will be retried by Razorpay.
 	type promotedFile struct {
 		fileID   string
 		finalKey string
@@ -272,8 +251,6 @@ func (ps *PaymentService) handlePaymentSuccess(ctx context.Context, payload mode
 		promoted = append(promoted, promotedFile{fileID: f.ID, finalKey: finalKey})
 	}
 
-	//  Commit everything in one transaction
-	// update: each file's final_key + status, session status, payment status.
 	tx, err := ps.db.BeginTx(ctx, nil)
 	if err != nil {
 		return apperror.Internal("failed to begin transaction", err)
@@ -326,8 +303,6 @@ func (ps *PaymentService) handlePaymentFailed(ctx context.Context, payload model
 		"razorpay_order_id", orderID,
 	)
 
-	// Mark payment as failed in DB. Session stays in "priced" so the user
-	// can retry payment. Files remain in staging until the lifecycle rule cleans them.
 	if err := ps.paymentrepo.UpdatePaymentFailed(ctx, orderID); err != nil {
 		return err
 	}
@@ -338,7 +313,6 @@ func (ps *PaymentService) handlePaymentFailed(ctx context.Context, payload model
 
 //  helpers 
 // verifyWebhookSignature computes HMAC-SHA256(webhookSecret, rawBody)
-// and compares it to the signature Razorpay sent in the header.
 func (ps *PaymentService) verifyWebhookSignature(body []byte, signature string) bool {
 	mac := hmac.New(sha256.New, []byte(ps.webhookSecret))
 	mac.Write(body)
@@ -347,7 +321,6 @@ func (ps *PaymentService) verifyWebhookSignature(body []byte, signature string) 
 }
 
 // createRazorpayOrder calls Razorpay's Orders API to create an order.
-// Returns the Razorpay order ID (order_xxx) on success.
 func (ps *PaymentService) createRazorpayOrder(ctx context.Context, amountPaise int64, sessionID string) (string, error) {
 	body := fmt.Sprintf(
 		`{"amount":%d,"currency":"INR","receipt":"%s","payment_capture":1}`,
@@ -395,7 +368,6 @@ func (ps *PaymentService) createRazorpayOrder(ctx context.Context, amountPaise i
 }
 
 // rupeeToP converts rupees (float64, from DB NUMERIC) to paise (int64).
-// e.g. 35.50 → 3550
 func rupeeToP(rupees float64) int64 {
 	return int64(math.Round(rupees * 100))
 }

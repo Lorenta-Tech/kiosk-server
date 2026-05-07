@@ -38,7 +38,7 @@ func NewPaymentHandler(paymentservice *service.PaymentService, logger *slog.Logg
 //	@Failure      500   {object}  utils.Envelope
 //	@Router       /payments/create [post]
 func (ph *PaymentHandler) HandleCreateOrder(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
 	req, err := utils.DecodeJSON[models.CreatePaymentRequest](r)
@@ -78,21 +78,15 @@ func (ph *PaymentHandler) HandleCreateOrder(w http.ResponseWriter, r *http.Reque
 //	@Failure      500  {object}  utils.Envelope
 //	@Router       /webhooks/razorpay [post]
 func (ph *PaymentHandler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
-	// Webhook processing must complete within 5 seconds or Razorpay marks it
-	// as failed and retries. Give ourselves 4.5s to be safe.
 	ctx, cancel := context.WithTimeout(r.Context(), 4500*time.Millisecond)
 	defer cancel()
 
-	// Attach context to request so service can use it
 	r = r.WithContext(ctx)
 
 	if err := ph.paymentservice.HandleWebhook(r); err != nil {
-		// 401 for invalid signature — tell Razorpay explicitly
-		// 500 for internal errors — Razorpay will retry
 		utils.HandleError(w, ph.logger, err)
 		return
 	}
 
-	// Always respond 200 with ok — Razorpay considers anything else a failure
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"status": "ok"})
 }
