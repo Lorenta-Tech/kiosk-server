@@ -71,7 +71,7 @@ func (fs *FileService) InitUpload(
 		UserEmail: userEmail,
 		Status:    "created",
 		Token:     tokenStr,
-		ExpiresAt: time.Now().Add(1 * time.Hour),
+	    ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 	}
 
 	if err := txRepo.CreateSession(ctx, session); err != nil {
@@ -285,7 +285,7 @@ func (fs *FileService) ConfirmUpload(
 
 	return models.ConfirmUploadResponse{
 		SessionID:   req.SessionID,
-		Status:      "priced",
+		Status:      "paid",
 		Files:       responseFiles,
 		TotalSheets: totalSheets,
 		TotalAmount: totalAmount,
@@ -337,7 +337,7 @@ func (fs *FileService) GetJobByToken(
 		return models.TokenJobResponse{}, err
 	}
 
-	if session.Status != "priced" {
+	if session.Status != "paid" {
 		fs.logger.Warn("token lookup rejected — wrong session status",
 			"token", req.Token,
 			"session_id", session.ID,

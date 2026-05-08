@@ -114,7 +114,7 @@ func (c *Client) FileExists(ctx context.Context, key string) (bool, error) {
 		if errors.As(err, &apiErr) {
 			code := apiErr.ErrorCode()
 			if code == "NoSuchKey" || code == "NotFound" {
-				return false, nil 
+				return false, nil
 			}
 			return false, fmt.Errorf("failed to head object %s: %w", key, err)
 		}
@@ -130,6 +130,9 @@ This is "commit" step that runs on payment webhook verified.
 returns the final key on successfull payments
 */
 func (c *Client) PromoteFile(ctx context.Context, stagingKey string) (string, error) {
+	if stagingKey == "" {
+		return "", fmt.Errorf("PromoteFile: stagingKey is empty — file row missing staging_key in DB")
+	}
 	finalKey := FinalKey(stagingKey)
 	copySource := fmt.Sprintf("%s/%s", c.bucket, stagingKey)
 
