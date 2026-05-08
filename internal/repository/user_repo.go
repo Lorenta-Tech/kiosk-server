@@ -9,13 +9,10 @@ import (
 	"github.com/Lorenta-Tech/kiosk-server/pkg/apperror"
 )
 
-
-
 type UserRepo interface {
 	GetByGoogleID(ctx context.Context, googleID string) (models.User, error)
 	Create(ctx context.Context, user models.User) (models.User, error)
 }
-
 
 type PostgresUserRepo struct {
 	db DBTX

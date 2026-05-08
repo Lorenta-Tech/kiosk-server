@@ -79,12 +79,10 @@ func (ps *PaymentService) CreateOrder(
 	}
 
 	if session.TotalAmount == nil {
-		ps.logger.Info("Total_Amount:", "amount", session.TotalAmount)
 		return models.CreatePaymentResponse{}, apperror.Internal(
 			"session has no total amount", nil,
 		)
 	}
-
 	dbAmountPaise := rupeeToP(*session.TotalAmount)
 
 	if req.AmountPaise != dbAmountPaise {
@@ -99,7 +97,6 @@ func (ps *PaymentService) CreateOrder(
 		)
 	}
 
-	// Create Razorpay order
 	rzpOrderID, err := ps.createRazorpayOrder(ctx, dbAmountPaise, req.SessionID)
 	if err != nil {
 		return models.CreatePaymentResponse{}, err
@@ -111,7 +108,6 @@ func (ps *PaymentService) CreateOrder(
 		"amount_paise", dbAmountPaise,
 	)
 
-	//	Persist payment row
 	paymentID := uuid.NewString()
 	if err := ps.paymentrepo.CreatePayment(ctx, models.Payment{
 		ID:              paymentID,
@@ -137,9 +133,8 @@ func (ps *PaymentService) CreateOrder(
 	}, nil
 }
 
-
+// HandleWebhook processes inbound Razorpay webhook events.
 func (ps *PaymentService) HandleWebhook(r *http.Request) error {
-	//  Read raw body — must happen before any decode
 	rawBody, err := io.ReadAll(r.Body)
 	if err != nil {
 		return apperror.Internal("failed to read webhook body", err)
@@ -169,6 +164,7 @@ func (ps *PaymentService) HandleWebhook(r *http.Request) error {
 		return ps.handlePaymentFailed(r.Context(), payload)
 	default:
 		// Acknowledge unknown events — never return non-2xx to Razorpay
+		// or it will retry indefinitely.
 		ps.logger.Info("webhook event ignored", "event", payload.Event)
 		return nil
 	}
@@ -194,7 +190,6 @@ func (ps *PaymentService) handlePaymentSuccess(ctx context.Context, payload mode
 		return err
 	}
 
-
 	if payment.Status == "success" {
 		ps.logger.Info("duplicate webhook ignored — payment already succeeded",
 			"razorpay_order_id", orderID,
@@ -202,13 +197,11 @@ func (ps *PaymentService) handlePaymentSuccess(ctx context.Context, payload mode
 		return nil
 	}
 
-	//  Fetch session to get files
 	session, err := ps.filerepo.GetSessionByID(ctx, payment.SessionID)
 	if err != nil {
 		return err
 	}
 
-	// Guard: only promote if session is priced (not already paid)
 	if session.Status == "paid" {
 		ps.logger.Info("session already paid — skipping promotion",
 			"session_id", session.ID,
@@ -260,7 +253,6 @@ func (ps *PaymentService) handlePaymentSuccess(ctx context.Context, payload mode
 	txPayment := ps.paymentrepo.WithTx(tx)
 	txFile := ps.filerepo.WithTx(tx)
 
-	// Mark each file as promoted with its final key
 	for _, pf := range promoted {
 		if err := txFile.MarkFilePromoted(ctx, pf.fileID, pf.finalKey); err != nil {
 			return err

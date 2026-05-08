@@ -17,12 +17,9 @@ type Payment struct {
 	Status           string   // created | success | failed
 }
 
-// CreatePaymentResponse is returned to the frontend.
-// The frontend passes razorpay_order_id + amount_paise directly into the
-// Razorpay checkout modal.
 type CreatePaymentResponse struct {
-	PaymentID       string `json:"payment_id"`        // your DB payment row id
-	RazorpayOrderID string `json:"razorpay_order_id"` // passed to Razorpay checkout
+	PaymentID       string `json:"payment_id"`        
+	RazorpayOrderID string `json:"razorpay_order_id"` 
 	AmountPaise     int64  `json:"amount_paise"`   
 	Currency        string `json:"currency"`      
 	SessionID       string `json:"session_id"`
@@ -50,14 +47,13 @@ type RazorpayOrderWrapper struct {
 }
 
 type RazorpayPaymentEntity struct {
-	ID      string `json:"id"`       // pay_xxx
-	OrderID string `json:"order_id"` // order_xxx
-	Amount  int64  `json:"amount"`   // in paise
-	Status  string `json:"status"`   // captured | failed
+	ID      string `json:"id"`       
+	OrderID string `json:"order_id"`
+	Amount  int64  `json:"amount"`   //in paise
+	Status  string `json:"status"`   
 }
-
 type RazorpayOrderEntity struct {
-	ID     string `json:"id"`     // order_xxx
+	ID     string `json:"id"`    
 	Amount int64  `json:"amount"` // in paise
-	Status string `json:"status"` // paid | attempted | created
+	Status string `json:"status"` 
 }
