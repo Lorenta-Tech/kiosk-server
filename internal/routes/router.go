@@ -54,6 +54,7 @@ func fileRoutes(app *app.Application, r chi.Router) {
 		r.Post("/upload/init", app.FileHandler.HandleInitFileUpload)
 		r.Post("/upload/confirm", app.FileHandler.HandleConfirmFileUpload)
 		r.Get("/jobs/recent", app.FileHandler.HandleGetRecentPrintJobs)
+		r.Get("/jobs/active",app.FileHandler.HandleActivePrintJobs)
 	})
 }
 

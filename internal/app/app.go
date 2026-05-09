@@ -14,6 +14,7 @@ import (
 	"github.com/Lorenta-Tech/kiosk-server/internal/repository"
 	"github.com/Lorenta-Tech/kiosk-server/internal/service"
 	"github.com/Lorenta-Tech/kiosk-server/pkg/db"
+	//"github.com/Lorenta-Tech/kiosk-server/pkg/mail"
 	"github.com/Lorenta-Tech/kiosk-server/pkg/s3"
 	"github.com/Lorenta-Tech/kiosk-server/pkg/utils"
 	_ "github.com/joho/godotenv/autoload"
@@ -75,6 +76,11 @@ func NewApplication() (*Application, error) {
 	if err != nil {
 		return nil, fmt.Errorf("s3 unreachable: %w", err)
 	}
+
+	// mailClient, err := mail.NewResendClient()
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to innitialize mail client")
+	// }
 
 	logger.Info("s3 client initialized", "bucket", env.GetString("BUCKET", "aiet-printflow-upload-prod"))
 
