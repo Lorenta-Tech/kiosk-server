@@ -55,7 +55,7 @@ func (fh *FileHandler) HandleInitFileUpload(w http.ResponseWriter, r *http.Reque
 	// TODO: replace with auth middleware values
 	// userID    := r.Context().Value(middlewares.UserIDKey).(string)
 	// userEmail := r.Context().Value(middlewares.UserEmailKey).(string)
-	userID    := "8473e7f9-2c72-4baf-b861-cd8238b15af6"
+	userID := "8473e7f9-2c72-4baf-b861-cd8238b15af6"
 	userEmail := "hardcoded@email.com"
 
 	resp, err := fh.fileservice.InitUpload(ctx, userID, userEmail, req)
@@ -141,7 +141,7 @@ func (fh *FileHandler) HandleActivePrintJobs(w http.ResponseWriter, r *http.Requ
 	// userID := r.Context().Value(middlewares.UserIDKey).(string)
 	userID := "8473e7f9-2c72-4baf-b861-cd8238b15af6"
 
-	resp, err := fh.fileservice.GetRecentPrintJobs(ctx, userID)
+	resp, err := fh.fileservice.GetActivePrintJobs(ctx, userID)
 	if err != nil {
 		utils.HandleError(w, fh.logger, err)
 		return
@@ -150,6 +150,28 @@ func (fh *FileHandler) HandleActivePrintJobs(w http.ResponseWriter, r *http.Requ
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
 }
 
+func (fh *FileHandler) HandleErrorRequestFromPrinter(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	req, err := utils.DecodeJSON[models.ErrorRequestFromPrinter](r)
+	if err != nil {
+		utils.HandleError(w, fh.logger, err)
+		return
+	}
+
+	if err := validator.Validate(req); err != nil {
+		utils.HandleError(w, fh.logger, apperror.BadRequest("validation_error", err.Error()))
+		return
+	}
+
+	if err := fh.fileservice.ErrorRequestFromPrinter(ctx, req); err != nil {
+		utils.HandleError(w, fh.logger, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"mail":"sent"})
+}
 
 // HandleGetJobByToken godoc
 //

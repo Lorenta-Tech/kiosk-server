@@ -14,8 +14,8 @@ type ResendClient struct {
 
 func NewResendClient() (*ResendClient, error) {
 	var (
-		apiKey = env.GetString("RESEND_API_KEY","")
-		from   = env.GetString("FROM_EMAIL","")
+		apiKey = env.GetString("RESEND_API_KEY","edwins@aiet.org.in")
+		from   = env.GetString("FROM_EMAIL","re_Fus18zXT_FYvGYQ9wdYja85A7qnQZ1opE")
 	)
 
 	if apiKey == "" || from == "" {
@@ -29,20 +29,19 @@ func NewResendClient() (*ResendClient, error) {
 		from:   from,
 	}, nil
 }
-
-func (r *ResendClient) Send(to, subject, body string) error {
+func (r *ResendClient) Send(
+	to []string,
+	subject string,
+	body string,
+) error {
 
 	params := &resend.SendEmailRequest{
 		From:    r.from,
-		To:      []string{to},
+		To:      to,
 		Subject: subject,
 		Html:    body,
 	}
 
 	_, err := r.client.Emails.Send(params)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }

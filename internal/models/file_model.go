@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"time"
+
+)
 
 type InitFileRequest struct {
 	FileName    string `json:"file_name"    validate:"required"`
@@ -35,17 +38,19 @@ type ExpireSessionRequest struct {
 }
 
 type ErrorRequestFromPrinter struct {
-	Error  string  `json:"error" validate:"required,oneOf=paper_out_of_bounds,paper_jam,no_ink"`
+	SessionID string       `json:"session_id" validate:"required,uuid4"`
+	Error     PrinterError `json:"error" validate:"required"`
+	PrinterID string       `json:"printer_id"`
 }
 
-//DB rows 
+//DB rows
 
 type UploadSession struct {
 	ID          string
 	UserID      string
 	UserEmail   string
 	Status      string
-	Token       string   
+	Token       string
 	TotalAmount *float64
 	TotalSheets *int
 	ExpiresAt   time.Time
@@ -69,7 +74,7 @@ type UploadFile struct {
 	CreatedAt     time.Time
 }
 
-// Init response 
+// Init response
 
 type InitFileResponse struct {
 	FileID     string `json:"file_id"`
@@ -80,7 +85,7 @@ type InitFileResponse struct {
 
 type InitUploadResponse struct {
 	SessionID string             `json:"session_id"`
-	Token     int                `json:"token"`     
+	Token     int                `json:"token"`
 	ExpiresAt time.Time          `json:"expires_at"`
 	Files     []InitFileResponse `json:"files"`
 }
@@ -103,7 +108,7 @@ type ConfirmUploadResponse struct {
 	TotalAmount float64               `json:"total_amount"`
 }
 
-// Shared file shape 
+// Shared file shape
 
 // PrintJobFile is the safe public shape of a file.
 // DownloadURL is only populated for the token lookup route —
@@ -139,7 +144,7 @@ type RecentPrintJobsResponse struct {
 	Total int        `json:"total"`
 }
 
-//Token lookup response 
+// Token lookup response
 type TokenJobResponse struct {
 	Job PrintJob `json:"job"`
 }
