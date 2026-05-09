@@ -78,6 +78,8 @@ func (c *Client) PresignGet(ctx context.Context, key string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to presign get for key %s: %w", key, err)
 	}
+
+	fmt.Printf("DEBUG PRESIGN GET URL: %s\n", req.URL)
 	return req.URL, nil
 }
 

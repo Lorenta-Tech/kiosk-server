@@ -239,7 +239,7 @@ func (r *PostgresFileRepo) GetRecentPrintJobs(ctx context.Context, userID string
 func (r *PostgresFileRepo) GetFilesBySessionID(ctx context.Context, sessionID string) ([]models.UploadFile, error) {
 	const query = `
 		SELECT
-			id, session_id, file_name,staging_key,
+			id, session_id, file_name,staging_key,final_key,
 			printing_mode, printing_side, page_range,
 			page_layout, copies, number_of_pages,
 			price, file_status, created_at
@@ -260,7 +260,7 @@ func (r *PostgresFileRepo) GetFilesBySessionID(ctx context.Context, sessionID st
 	for rows.Next() {
 		var f models.UploadFile
 		if err := rows.Scan(
-			&f.ID, &f.SessionID, &f.FileName,&f.StagingKey,
+			&f.ID, &f.SessionID, &f.FileName,&f.StagingKey,&f.FinalKey,
 			&f.PrintingMode, &f.PrintingSide,
 			pq.Array(&f.PageRange),
 			&f.PageLayout, &f.Copies, &f.NumberOfPages,

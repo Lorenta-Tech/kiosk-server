@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"time"
@@ -169,5 +170,13 @@ func (fh *FileHandler) HandleGetJobByToken(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	encoder := json.NewEncoder(w)
+	encoder.SetEscapeHTML(false)
+
+	if err := encoder.Encode(utils.Envelope{"data": resp}); err != nil {
+		fh.logger.Error("failed to encode response", "error", err)
+	}
 }

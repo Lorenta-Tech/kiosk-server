@@ -46,6 +46,7 @@ func (fs *FileService) InitUpload(
 	fs.logger.Info("init upload started",
 		"user_id", userID,
 		"file_count", len(req.Files),
+		"request_payload", req,
 	)
 
 	tx, err := fs.db.BeginTx(ctx, nil)
@@ -71,7 +72,7 @@ func (fs *FileService) InitUpload(
 		UserEmail: userEmail,
 		Status:    "created",
 		Token:     tokenStr,
-	    ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
 	}
 
 	if err := txRepo.CreateSession(ctx, session); err != nil {
@@ -219,16 +220,28 @@ func (fs *FileService) ConfirmUpload(
 			f.PrintingMode, f.PrintingSide,
 		)
 
+		fs.logger.Info("file price calculated",
+			"price", price,
+			"sheets", sheets,
+			"num_of_pages", f.NumOfPages,
+			"copies", f.Copies,
+			"page_layout", f.PageLayout,
+			"printing_mode", f.PrintingMode,
+			"printing_side", f.PrintingSide,
+		)
+
 		totalAmount += price
 		totalSheets += sheets
 
-		dbFile.PrintingMode  = &f.PrintingMode
-		dbFile.PrintingSide  = &f.PrintingSide
-		dbFile.PageRange     = f.PageRange
-		dbFile.PageLayout    = &f.PageLayout
-		dbFile.Copies        = &f.Copies
+		fs.logger.Info("Total done bebug", "TotalAmount:", totalAmount, "TotalSheetes:", totalSheets)
+
+		dbFile.PrintingMode = &f.PrintingMode
+		dbFile.PrintingSide = &f.PrintingSide
+		dbFile.PageRange = f.PageRange
+		dbFile.PageLayout = &f.PageLayout
+		dbFile.Copies = &f.Copies
 		dbFile.NumberOfPages = &f.NumOfPages
-		dbFile.Price         = &price
+		dbFile.Price = &price
 
 		enriched = append(enriched, enrichedFile{
 			dbRow: dbFile,
@@ -292,7 +305,6 @@ func (fs *FileService) ConfirmUpload(
 	}, nil
 }
 
-
 func (fs *FileService) GetRecentPrintJobs(
 	ctx context.Context,
 	userID string,
@@ -309,7 +321,7 @@ func (fs *FileService) GetRecentPrintJobs(
 		fs.logger.Info("no print jobs found", "user_id", userID)
 		return models.RecentPrintJobsResponse{Jobs: []models.PrintJob{}, Total: 0}, nil
 	}
- 
+
 	jobs, err := fs.buildPrintJobs(ctx, sessions)
 	if err != nil {
 		return models.RecentPrintJobsResponse{}, err
@@ -349,7 +361,7 @@ func (fs *FileService) GetJobByToken(
 		)
 	}
 
-	// Check expiry 
+	// Check expiry
 	if time.Now().After(session.ExpiresAt) {
 		fs.logger.Warn("token lookup rejected — session expired",
 			"token", req.Token,
@@ -370,7 +382,8 @@ func (fs *FileService) GetJobByToken(
 	printJobFiles := make([]models.PrintJobFile, 0, len(files))
 	for _, f := range files {
 		//url expires in 15 minutes
-		url, err := fs.s3.PresignGet(ctx, f.StagingKey)//need to put final key
+		url, err := fs.s3.PresignGet(ctx, *f.FinalKey) //need to put final key
+		fs.logger.Info("final_Key_Bebugging", "final_key:", *f.FinalKey)
 		if err != nil {
 			fs.logger.Error("failed to presign get url for file",
 				"session_id", session.ID,
@@ -394,7 +407,7 @@ func (fs *FileService) GetJobByToken(
 			NumberOfPages: f.NumberOfPages,
 			Price:         f.Price,
 			FileStatus:    f.FileStatus,
-			DownloadURL:   &url, 
+			DownloadURL:   &url,
 		}
 		printJobFiles = append(printJobFiles, pf)
 	}
@@ -436,7 +449,6 @@ func (fs *FileService) buildPrintJobs(ctx context.Context, sessions []models.Upl
 	return jobs, nil
 }
 
-
 func buildPrintJobFiles(files []models.UploadFile) []models.PrintJobFile {
 	result := make([]models.PrintJobFile, 0, len(files))
 	for _, f := range files {
@@ -455,7 +467,6 @@ func buildPrintJobFiles(files []models.UploadFile) []models.PrintJobFile {
 	}
 	return result
 }
-
 
 func tokenStatusMessage(status string) string {
 	switch status {
