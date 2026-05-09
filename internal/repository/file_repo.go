@@ -34,12 +34,15 @@ type FileRepo interface {
 
 	// Recent print jobs
 	GetRecentPrintJobs(ctx context.Context, userID string, limit int) ([]models.UploadSession, error)
+	GetActivePrintJobs(ctx context.Context, userID string) ([]models.UploadSession, error)
 	GetFilesBySessionID(ctx context.Context, sessionID string) ([]models.UploadFile, error)
 
 	// Token lookup
 	GetSessionByToken(ctx context.Context, token string) (models.UploadSession, error)
 	MarkFilePromoted(ctx context.Context, fileID, finalKey string) error
 	UpdateSessionPaid(ctx context.Context, sessionID string) error
+
+	ExpireSessionAfterPrinting(ctx context.Context, sessionID string) error
 }
 
 // Implementation
@@ -260,7 +263,7 @@ func (r *PostgresFileRepo) GetFilesBySessionID(ctx context.Context, sessionID st
 	for rows.Next() {
 		var f models.UploadFile
 		if err := rows.Scan(
-			&f.ID, &f.SessionID, &f.FileName,&f.StagingKey,&f.FinalKey,
+			&f.ID, &f.SessionID, &f.FileName, &f.StagingKey, &f.FinalKey,
 			&f.PrintingMode, &f.PrintingSide,
 			pq.Array(&f.PageRange),
 			&f.PageLayout, &f.Copies, &f.NumberOfPages,
@@ -350,4 +353,102 @@ func (r *PostgresFileRepo) UpdateSessionPaid(ctx context.Context, sessionID stri
 		)
 	}
 	return nil
+}
+
+func (r *PostgresFileRepo) ExpireSessionAfterPrinting(
+	ctx context.Context,
+	sessionID string,
+) error {
+
+	const query = `
+		UPDATE upload_sessions
+		SET
+			status = 'completed',
+			expires_at = NOW()
+		WHERE id = $1
+	`
+
+	result, err := r.db.ExecContext(ctx, query, sessionID)
+	if err != nil {
+		return apperror.Internal(
+			"failed to expire session after printing",
+			fmt.Errorf("repository.ExpireSessionAfterPrinting session=%s: %w", sessionID, err),
+		)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return apperror.Internal(
+			"failed to verify session update",
+			fmt.Errorf("repository.ExpireSessionAfterPrinting rows: %w", err),
+		)
+	}
+
+	if rowsAffected == 0 {
+		return apperror.NotFound(
+			"session_not_found",
+			fmt.Sprintf("session %s does not exist", sessionID),
+		)
+	}
+
+	return nil
+}
+
+// Active print jobs (status = paid)
+func (r *PostgresFileRepo) GetActivePrintJobs(
+	ctx context.Context,
+	userID string,
+) ([]models.UploadSession, error) {
+
+	const query = `
+		SELECT id, user_id, user_email, status,
+		       total_amount, total_sheets,
+		       expires_at, created_at
+		FROM upload_sessions
+		WHERE user_id = $1
+		  AND status = 'paid'
+		ORDER BY created_at DESC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, apperror.Internal(
+			"failed to fetch active print jobs",
+			fmt.Errorf("repository.GetActivePrintJobs: %w", err),
+		)
+	}
+	defer rows.Close()
+
+	sessions := make([]models.UploadSession, 0)
+
+	for rows.Next() {
+		var s models.UploadSession
+
+		if err := rows.Scan(
+			&s.ID,
+			&s.UserID,
+			&s.UserEmail,
+			&s.Status,
+			&s.TotalAmount,
+			&s.TotalSheets,
+			&s.ExpiresAt,
+			&s.CreatedAt,
+		); err != nil {
+			return nil, apperror.Internal(
+				"failed to scan active print job row",
+				fmt.Errorf("repository.GetActivePrintJobs scan: %w", err),
+			)
+		}
+
+		sessions = append(sessions, s)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, apperror.Internal(
+			"error reading active print job rows",
+			fmt.Errorf("repository.GetActivePrintJobs rows.Err: %w", err),
+		)
+	}
+
+	return sessions, nil
 }

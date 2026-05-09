@@ -21,16 +21,18 @@ import (
 const defaultRecentJobsLimit = 10
 
 type FileService struct {
-	filerepo repository.FileRepo
-	s3       *s3pkg.Client
-	db       *sql.DB
-	logger   *slog.Logger
+	filerepo   repository.FileRepo
+	s3         *s3pkg.Client
+	db         *sql.DB
+//	mailclient *mail.ResendClient
+	logger     *slog.Logger
 }
 
 func NewFileService(
 	filerepo repository.FileRepo,
 	s3 *s3pkg.Client,
 	db *sql.DB,
+	//mailclient *mail.ResendClient,
 	logger *slog.Logger,
 ) *FileService {
 	return &FileService{filerepo: filerepo, s3: s3, db: db, logger: logger}
@@ -335,6 +337,36 @@ func (fs *FileService) GetRecentPrintJobs(
 	return models.RecentPrintJobsResponse{Jobs: jobs, Total: len(jobs)}, nil
 }
 
+func (fs *FileService) GetActivePrintJobs(
+	ctx context.Context,
+	userID string,
+) (models.RecentPrintJobsResponse, error) {
+
+	fs.logger.Info("get recent print jobs started", "user_id", userID)
+
+	sessions, err := fs.filerepo.GetActivePrintJobs(ctx, userID)
+	if err != nil {
+		return models.RecentPrintJobsResponse{}, err
+	}
+
+	if len(sessions) == 0 {
+		fs.logger.Info("no print jobs found", "user_id", userID)
+		return models.RecentPrintJobsResponse{Jobs: []models.PrintJob{}, Total: 0}, nil
+	}
+
+	jobs, err := fs.buildPrintJobs(ctx, sessions)
+	if err != nil {
+		return models.RecentPrintJobsResponse{}, err
+	}
+
+	fs.logger.Info("get recent print jobs completed",
+		"user_id", userID,
+		"job_count", len(jobs),
+	)
+
+	return models.RecentPrintJobsResponse{Jobs: jobs, Total: len(jobs)}, nil
+}
+
 func (fs *FileService) GetJobByToken(
 	ctx context.Context,
 	req models.GetJobByTokenRequest,
@@ -429,6 +461,62 @@ func (fs *FileService) GetJobByToken(
 		},
 	}, nil
 }
+
+func (fs *FileService) ExpireSessionAfterPrinting(
+	ctx context.Context,
+	req models.ExpireSessionRequest,
+) error {
+
+	fs.logger.Info("expire session after printing started",
+		"session_id", req.SessionID,
+	)
+
+	session, err := fs.filerepo.GetSessionByID(ctx, req.SessionID)
+	if err != nil {
+		return err
+	}
+
+	if session.Status == "completed" {
+		return apperror.BadRequest(
+			"session_already_completed",
+			"this session has already been completed",
+		)
+	}
+
+	if err := fs.filerepo.ExpireSessionAfterPrinting(ctx, req.SessionID); err != nil {
+		return err
+	}
+
+	fs.logger.Info("session marked completed",
+		"session_id", req.SessionID,
+	)
+
+	return nil
+}
+
+// func (fs *FileService) ErrorRequestFromPrinter(ctx context.Context,errormsg string)error{
+// 	fs.logger.Info("Error Request From Printer Started")
+
+// 	switch errormsg {
+// 	case "paper_out_of_bounds":
+// 		if err := fs.mailclient.Send("suhasdeveloper07@gmail.com","Paper Out Of Bounds","for now fake body");err != nil {
+// 			return apperror.Internal(fmt.Sprint("failed to send email right now for email out of boudns"),err)
+// 		}
+// 		return nil
+//     case "paper_jam":
+// 		if err := fs.mailclient.Send("suhasdeveloper07@gmail.com","paper jam ","for now fake body");err!=nil{
+// 			return apperror.Internal(fmt.Sprintf("failed to send email for this paper jam request"),err)
+// 		}
+// 		return nil
+// 	case "no_ink":
+// 		if err := fs.mailclient.Send("suhasdeveloper07@gmail.com","no_ink","fake for now");err != nil{
+// 			return apperror.Internal(fmt.Sprintf("failed to send email for this request, No ink"),err)
+// 		}
+// 		return nil
+// 	}
+// 	return nil
+
+// }
 
 func (fs *FileService) buildPrintJobs(ctx context.Context, sessions []models.UploadSession) ([]models.PrintJob, error) {
 	jobs := make([]models.PrintJob, 0, len(sessions))

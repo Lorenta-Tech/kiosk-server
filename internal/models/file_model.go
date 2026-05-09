@@ -26,9 +26,16 @@ type ConfirmUploadRequest struct {
 	Files     []ConfirmFileRequest `json:"files"      validate:"required,min=1,dive"`
 }
 
-
 type GetJobByTokenRequest struct {
 	Token int `json:"token" validate:"required,min=100000,max=999999"`
+}
+
+type ExpireSessionRequest struct {
+	SessionID string `json:"session_id" validate:"required,uuid4"`
+}
+
+type ErrorRequestFromPrinter struct {
+	Error  string  `json:"error" validate:"required,oneOf=paper_out_of_bounds,paper_jam,no_ink"`
 }
 
 //DB rows 

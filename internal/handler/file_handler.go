@@ -133,6 +133,24 @@ func (fh *FileHandler) HandleGetRecentPrintJobs(w http.ResponseWriter, r *http.R
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
 }
 
+func (fh *FileHandler) HandleActivePrintJobs(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	// TODO: replace with auth middleware value
+	// userID := r.Context().Value(middlewares.UserIDKey).(string)
+	userID := "8473e7f9-2c72-4baf-b861-cd8238b15af6"
+
+	resp, err := fh.fileservice.GetRecentPrintJobs(ctx, userID)
+	if err != nil {
+		utils.HandleError(w, fh.logger, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
+}
+
+
 // HandleGetJobByToken godoc
 //
 //	@Summary      Retrieve a print job by 6-digit token
@@ -179,4 +197,50 @@ func (fh *FileHandler) HandleGetJobByToken(w http.ResponseWriter, r *http.Reques
 	if err := encoder.Encode(utils.Envelope{"data": resp}); err != nil {
 		fh.logger.Error("failed to encode response", "error", err)
 	}
+}
+
+// HandleExpireSessionAfterPrinting godoc
+//
+//	@Summary      Expire session after printing
+//	@Description  Marks the upload session as completed and expires it immediately.
+//	@Tags         jobs
+//	@Accept       json
+//	@Produce      json
+//	@Param        body  body      models.ExpireSessionRequest  true  "Session ID"
+//	@Success      200   {object}  utils.Envelope
+//	@Failure      400   {object}  utils.Envelope
+//	@Failure      404   {object}  utils.Envelope
+//	@Failure      500   {object}  utils.Envelope
+//	@Router       /files/jobs/complete [post]
+func (fh *FileHandler) HandleExpireSessionAfterPrinting(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	req, err := utils.DecodeJSON[models.ExpireSessionRequest](r)
+	if err != nil {
+		utils.HandleError(w, fh.logger, err)
+		return
+	}
+
+	if err := validator.Validate(req); err != nil {
+		utils.HandleError(
+			w,
+			fh.logger,
+			apperror.BadRequest("validation_error", err.Error()),
+		)
+		return
+	}
+
+	if err := fh.fileservice.ExpireSessionAfterPrinting(ctx, req); err != nil {
+		utils.HandleError(w, fh.logger, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{
+		"message": "session marked as completed",
+	})
 }
