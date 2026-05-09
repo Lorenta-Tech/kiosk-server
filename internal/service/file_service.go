@@ -13,6 +13,7 @@ import (
 	"github.com/Lorenta-Tech/kiosk-server/internal/models"
 	"github.com/Lorenta-Tech/kiosk-server/internal/repository"
 	"github.com/Lorenta-Tech/kiosk-server/pkg/apperror"
+	"github.com/Lorenta-Tech/kiosk-server/pkg/mail"
 	s3pkg "github.com/Lorenta-Tech/kiosk-server/pkg/s3"
 	"github.com/Lorenta-Tech/kiosk-server/pkg/utils"
 	"github.com/google/uuid"
@@ -24,7 +25,7 @@ type FileService struct {
 	filerepo   repository.FileRepo
 	s3         *s3pkg.Client
 	db         *sql.DB
-//	mailclient *mail.ResendClient
+	mailclient *mail.ResendClient
 	logger     *slog.Logger
 }
 
@@ -32,10 +33,10 @@ func NewFileService(
 	filerepo repository.FileRepo,
 	s3 *s3pkg.Client,
 	db *sql.DB,
-	//mailclient *mail.ResendClient,
+	mailclient *mail.ResendClient,
 	logger *slog.Logger,
 ) *FileService {
-	return &FileService{filerepo: filerepo, s3: s3, db: db, logger: logger}
+	return &FileService{filerepo: filerepo, s3: s3, db: db,mailclient: mailclient, logger: logger}
 }
 
 func (fs *FileService) InitUpload(
@@ -493,31 +494,60 @@ func (fs *FileService) ExpireSessionAfterPrinting(
 
 	return nil
 }
+func (fs *FileService) ErrorRequestFromPrinter(
+	ctx context.Context,
+	req models.ErrorRequestFromPrinter,
+) error {
 
-// func (fs *FileService) ErrorRequestFromPrinter(ctx context.Context,errormsg string)error{
-// 	fs.logger.Info("Error Request From Printer Started")
+	fs.logger.Info(
+		"printer error received",
+		"session_id", req.SessionID,
+		"printer_id", req.PrinterID,
+		"error", req.Error,
+	)
 
-// 	switch errormsg {
-// 	case "paper_out_of_bounds":
-// 		if err := fs.mailclient.Send("suhasdeveloper07@gmail.com","Paper Out Of Bounds","for now fake body");err != nil {
-// 			return apperror.Internal(fmt.Sprint("failed to send email right now for email out of boudns"),err)
-// 		}
-// 		return nil
-//     case "paper_jam":
-// 		if err := fs.mailclient.Send("suhasdeveloper07@gmail.com","paper jam ","for now fake body");err!=nil{
-// 			return apperror.Internal(fmt.Sprintf("failed to send email for this paper jam request"),err)
-// 		}
-// 		return nil
-// 	case "no_ink":
-// 		if err := fs.mailclient.Send("suhasdeveloper07@gmail.com","no_ink","fake for now");err != nil{
-// 			return apperror.Internal(fmt.Sprintf("failed to send email for this request, No ink"),err)
-// 		}
-// 		return nil
-// 	}
-// 	return nil
+	template, err := mail.BuildPrinterErrorTemplate(
+		req.Error,
+		req.PrinterID,
+		req.SessionID,
+	)
+	if err != nil {
+		return apperror.BadRequest(
+			"invalid_printer_error",
+			err.Error(),
+		)
+	}
 
-// }
+	recipients := []string{
+		"suhasdeveloper07@gmail.com",
+		"manojseetaram.dev@gmail.com",
+		"prasannacharya428@gmail.com",
+	}
 
+	if err := fs.mailclient.Send(
+		recipients,
+		template.Subject,
+		template.Body,
+	); err != nil {
+
+		fs.logger.Error(
+			"failed to send printer alert email",
+			"error", err,
+		)
+
+		return apperror.Internal(
+			"failed to send printer alert email",
+			err,
+		)
+	}
+
+	fs.logger.Info(
+		"printer alert email sent successfully",
+		"error", req.Error,
+	)
+
+	return nil
+}
 func (fs *FileService) buildPrintJobs(ctx context.Context, sessions []models.UploadSession) ([]models.PrintJob, error) {
 	jobs := make([]models.PrintJob, 0, len(sessions))
 	for _, s := range sessions {

@@ -50,6 +50,8 @@ func authRoutes(app *app.Application, r chi.Router) {
 func fileRoutes(app *app.Application, r chi.Router) {
 	//public routes
 	r.Post("/print/jobs/token", app.FileHandler.HandleGetJobByToken)
+	r.Post("/print/jobs/error",app.FileHandler.HandleErrorRequestFromPrinter)
+
 	r.Route("/files", func(r chi.Router) {
 		r.Post("/upload/init", app.FileHandler.HandleInitFileUpload)
 		r.Post("/upload/confirm", app.FileHandler.HandleConfirmFileUpload)
