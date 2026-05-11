@@ -266,3 +266,28 @@ func (fh *FileHandler) HandleExpireSessionAfterPrinting(
 		"message": "session marked as completed",
 	})
 }
+
+
+func (fh *FileHandler) HandleGetJobBySessionID(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	req, err := utils.ReadParamID(r, "session_id")
+	if err != nil {
+		utils.HandleError(w, fh.logger, err)
+		return
+	}
+
+	if err := validator.Validate(req); err != nil {
+		utils.HandleError(w, fh.logger, apperror.BadRequest("validation_error", err.Error()))
+		return
+	}
+
+	resp, err := fh.fileservice.GetJobBySessionID(ctx, req)
+	if err != nil {
+		utils.HandleError(w, fh.logger, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
+}

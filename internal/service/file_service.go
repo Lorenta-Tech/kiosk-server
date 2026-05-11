@@ -548,6 +548,60 @@ func (fs *FileService) ErrorRequestFromPrinter(
 
 	return nil
 }
+
+func (fs *FileService) GetJobBySessionID(
+	ctx context.Context,
+	sessionId string,
+) (models.TokenJobResponse, error){
+	fs.logger.Info("get job by session ID started", "session_id", sessionId)
+
+	session, err := fs.filerepo.GetSessionByID(ctx, sessionId)
+	if err != nil {
+		return models.TokenJobResponse{}, err
+	}
+
+	files, err := fs.filerepo.GetFilesBySessionID(ctx, session.ID)
+	if err != nil {
+		return models.TokenJobResponse{}, err
+	}
+
+	printJobFiles := make([]models.PrintJobFile, 0, len(files))
+	for _, f := range files {
+		pf := models.PrintJobFile{
+			FileID:        f.ID,
+			FileName:      f.FileName,
+			PrintingMode:  f.PrintingMode,
+			PrintingSide:  f.PrintingSide,
+			PageRange:     f.PageRange,
+			PageLayout:    f.PageLayout,
+			Copies:        f.Copies,
+			NumberOfPages: f.NumberOfPages,
+			Price:         f.Price,
+			FileStatus:    f.FileStatus,
+		}
+		printJobFiles = append(printJobFiles, pf)
+	}
+
+	fs.logger.Info("get job by session ID completed",
+		"session_id", sessionId,
+		"file_count", len(files),
+	)
+
+	return models.TokenJobResponse{
+		Job: models.PrintJob{
+			SessionID:   session.ID,
+			Status:      session.Status,
+			TotalAmount: session.TotalAmount,
+			TotalSheets: session.TotalSheets,
+			CreatedAt:   session.CreatedAt,
+			Files:       printJobFiles,
+		},
+	}, nil
+}
+
+//helpers
+
+
 func (fs *FileService) buildPrintJobs(ctx context.Context, sessions []models.UploadSession) ([]models.PrintJob, error) {
 	jobs := make([]models.PrintJob, 0, len(sessions))
 	for _, s := range sessions {

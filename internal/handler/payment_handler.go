@@ -91,3 +91,30 @@ func (ph *PaymentHandler) HandleWebhook(w http.ResponseWriter, r *http.Request) 
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"status": "ok"})
 }
+
+
+
+
+func (fh *PaymentHandler) HandleGetPaymentStatus(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	req, err := utils.ReadParamID(r, "session_id")
+	if err != nil {
+		utils.HandleError(w, fh.logger, err)
+		return
+	}
+
+	// if err := validator.Validate(req); err != nil {
+	// 	utils.HandleError(w, fh.logger, apperror.BadRequest("validation_error", err.Error()))
+	// 	return
+	// }
+
+	resp, err := fh.paymentservice.GetPaymentStatus(ctx, req)
+	if err != nil {
+		utils.HandleError(w, fh.logger, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
+}

@@ -133,6 +133,60 @@ func (ps *PaymentService) CreateOrder(
 	}, nil
 }
 
+func (ps *PaymentService) GetPaymentStatus(
+	ctx context.Context,
+	sessionId string,
+) (models.TokenJobResponse, error){
+	ps.logger.Info("get job by session ID started", "session_id", sessionId)
+
+	session, err := ps.filerepo.GetSessionByID(ctx, sessionId)
+	if err != nil {
+		return models.TokenJobResponse{}, err
+	}
+
+	ps.logger.Info("Token Debugging","Token:",session.Token)
+
+	files, err := ps.filerepo.GetFilesBySessionID(ctx, session.ID)
+	if err != nil {
+		return models.TokenJobResponse{}, err
+	}
+
+	printJobFiles := make([]models.PrintJobFile, 0, len(files))
+	for _, f := range files {
+		pf := models.PrintJobFile{
+			FileID:        f.ID,
+			FileName:      f.FileName,
+			PrintingMode:  f.PrintingMode,
+			PrintingSide:  f.PrintingSide,
+			PageRange:     f.PageRange,
+			PageLayout:    f.PageLayout,
+			Copies:        f.Copies,
+			NumberOfPages: f.NumberOfPages,
+			Price:         f.Price,
+			FileStatus:    f.FileStatus,
+		}
+		printJobFiles = append(printJobFiles, pf)
+	}
+
+	ps.logger.Info("get job by session ID completed",
+		"session_id", sessionId,
+		"file_count", len(files),
+	)
+
+	return models.TokenJobResponse{
+		Job: models.PrintJob{
+			SessionID:   session.ID,
+			Status:      session.Status,
+			Token:       session.Token,
+			TotalAmount: session.TotalAmount,
+			TotalSheets: session.TotalSheets,
+			CreatedAt:   session.CreatedAt,
+			Files:       printJobFiles,
+		},
+	}, nil
+}
+
+
 // HandleWebhook processes inbound Razorpay webhook events.
 func (ps *PaymentService) HandleWebhook(r *http.Request) error {
 	rawBody, err := io.ReadAll(r.Body)

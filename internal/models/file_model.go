@@ -2,7 +2,6 @@ package models
 
 import (
 	"time"
-
 )
 
 type InitFileRequest struct {
@@ -34,6 +33,10 @@ type GetJobByTokenRequest struct {
 }
 
 type ExpireSessionRequest struct {
+	SessionID string `json:"session_id" validate:"required,uuid4"`
+}
+
+type GetJobBySessionIDRequest struct {
 	SessionID string `json:"session_id" validate:"required,uuid4"`
 }
 
@@ -131,6 +134,7 @@ type PrintJobFile struct {
 type PrintJob struct {
 	SessionID   string         `json:"session_id"`
 	Status      string         `json:"status"`
+	Token       string         `json:"token"`
 	TotalAmount *float64       `json:"total_amount"`
 	TotalSheets *int           `json:"total_sheets"`
 	CreatedAt   time.Time      `json:"created_at"`
