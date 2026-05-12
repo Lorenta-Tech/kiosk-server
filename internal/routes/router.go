@@ -53,6 +53,7 @@ func fileRoutes(app *app.Application, r chi.Router) {
 	r.Post("/print/jobs/error",app.FileHandler.HandleErrorRequestFromPrinter)
     r.Post("/print/jobs/expire" , app.FileHandler.HandleExpireSessionAfterPrinting)
 	r.Route("/files", func(r chi.Router) {
+		r.Use(middlewares.AuthMiddleware(app.JWTSecret))
 		r.Post("/upload/init", app.FileHandler.HandleInitFileUpload)
 		r.Post("/upload/confirm", app.FileHandler.HandleConfirmFileUpload)
 		r.Get("/jobs/recent", app.FileHandler.HandleGetRecentPrintJobs)
@@ -63,6 +64,7 @@ func fileRoutes(app *app.Application, r chi.Router) {
 
 func paymentRoutes(app *app.Application, r chi.Router) {
 	r.Route("/payments", func(r chi.Router) {
+		r.Use(middlewares.AuthMiddleware(app.JWTSecret))
 		r.Post("/create", app.PaymentHandler.HandleCreateOrder)
 		r.Get("/status/{session_id}", app.PaymentHandler.HandleGetPaymentStatus)
 	})

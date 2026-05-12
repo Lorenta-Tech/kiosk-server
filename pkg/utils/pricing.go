@@ -1,36 +1,72 @@
 package utils
 
-var rates = map[string]map[string]float64{
-	"monochromatic": {
-		"single_side": 1.00,
-		"double_side": 2.00,
-	},
-	"color": {
-		"single_side": 5.00,
-		"double_side": 10.00,
-	},
+import "math"
+
+var rates = map[string]float64{
+	"monochromatic": 1.00,
+	"color":         4.00,
 }
 
+func CalculateFilePrice(
+	numOfPages,
+	copies,
+	pageLayout int,
+	printingMode,
+	printingSide string,
+) (price float64, sheets int) {
 
-func CalculateFilePrice(numOfPages, copies, pageLayout int, printingMode, printingSide string) (price float64, sheets int) {
+	// how many pages fit in one sheet
 	pagesPerSheet := pageLayout
 	if printingSide == "double_side" {
 		pagesPerSheet = pageLayout * 2
 	}
 
-	sheetsPerCopy := (numOfPages + pagesPerSheet - 1) / pagesPerSheet
+	// total sheets per copy
+	sheetsPerCopy := int(math.Ceil(float64(numOfPages) / float64(pagesPerSheet)))
 	sheets = sheetsPerCopy * copies
 
-	rate := rateFor(printingMode, printingSide)
-	price = float64(sheets) * rate
+	// cost per printed side
+	costPerSide := rateFor(printingMode)
+
+	var totalSides int
+
+	if printingSide == "single_side" {
+
+		// each sheet uses only one side
+		totalSides = sheetsPerCopy
+
+	} else {
+
+		// double side logic
+		fullSheets := numOfPages / (pageLayout * 2)
+		remainingPages := numOfPages % (pageLayout * 2)
+
+		if remainingPages == 0 {
+
+			totalSides = fullSheets * 2
+
+		} else if remainingPages <= pageLayout {
+
+			// remaining pages fit on one side
+			totalSides = fullSheets*2 + 1
+
+		} else {
+
+			// remaining pages need both sides
+			totalSides = fullSheets*2 + 2
+		}
+	}
+
+	totalSides = totalSides * copies
+	price = float64(totalSides) * costPerSide
+
 	return price, sheets
 }
 
-func rateFor(printingMode, printingSide string) float64 {
-	if modeRates, ok := rates[printingMode]; ok {
-		if rate, ok := modeRates[printingSide]; ok {
-			return rate
-		}
+func rateFor(printingMode string) float64 {
+	if rate, ok := rates[printingMode]; ok {
+		return rate
 	}
-	return rates["monochromatic"]["single_side"]
+
+	return rates["monochromatic"]
 }
