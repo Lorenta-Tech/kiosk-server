@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Lorenta-Tech/kiosk-server/internal/middlewares"
 	"github.com/Lorenta-Tech/kiosk-server/internal/models"
 	"github.com/Lorenta-Tech/kiosk-server/internal/service"
 	"github.com/Lorenta-Tech/kiosk-server/internal/validator"
@@ -53,10 +54,10 @@ func (fh *FileHandler) HandleInitFileUpload(w http.ResponseWriter, r *http.Reque
 	}
 
 	// TODO: replace with auth middleware values
-	// userID    := r.Context().Value(middlewares.UserIDKey).(string)
-	// userEmail := r.Context().Value(middlewares.UserEmailKey).(string)
-	userID := "8473e7f9-2c72-4baf-b861-cd8238b15af6"
-	userEmail := "hardcoded@email.com"
+	userID    := r.Context().Value(middlewares.ContextUserID).(string)
+	userEmail := r.Context().Value(middlewares.ContextUserEmail).(string)
+	// userID := "8473e7f9-2c72-4baf-b861-cd8238b15af6"
+	// userEmail := "hardcoded@email.com"
 
 	resp, err := fh.fileservice.InitUpload(ctx, userID, userEmail, req)
 	if err != nil {
