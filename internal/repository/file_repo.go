@@ -199,7 +199,7 @@ func (r *PostgresFileRepo) UpdateSessionPriced(ctx context.Context, sessionID st
 // Recent print jobs
 func (r *PostgresFileRepo) GetRecentPrintJobs(ctx context.Context, userID string, limit int) ([]models.UploadSession, error) {
 	const query = `
-		SELECT id, user_id, user_email, status, total_amount, total_sheets, expires_at, created_at
+		SELECT id, user_id, user_email, status, total_amount, total_sheets, token, expires_at, created_at
 		FROM upload_sessions
 		WHERE user_id = $1
 		  AND status != 'created'
@@ -220,7 +220,7 @@ func (r *PostgresFileRepo) GetRecentPrintJobs(ctx context.Context, userID string
 		var s models.UploadSession
 		if err := rows.Scan(
 			&s.ID, &s.UserID, &s.UserEmail,
-			&s.Status, &s.TotalAmount, &s.TotalSheets,
+			&s.Status, &s.TotalAmount, &s.TotalSheets, &s.Token,
 			&s.ExpiresAt, &s.CreatedAt,
 		); err != nil {
 			return nil, apperror.Internal(
@@ -402,7 +402,7 @@ func (r *PostgresFileRepo) GetActivePrintJobs(
 
 	const query = `
 		SELECT id, user_id, user_email, status,
-		       total_amount, total_sheets,
+		       total_amount, total_sheets, token,
 		       expires_at, created_at
 		FROM upload_sessions
 		WHERE user_id = $1
@@ -431,6 +431,7 @@ func (r *PostgresFileRepo) GetActivePrintJobs(
 			&s.Status,
 			&s.TotalAmount,
 			&s.TotalSheets,
+			&s.Token,
 			&s.ExpiresAt,
 			&s.CreatedAt,
 		); err != nil {
