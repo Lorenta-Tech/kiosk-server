@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -54,10 +55,13 @@ func (fh *FileHandler) HandleInitFileUpload(w http.ResponseWriter, r *http.Reque
 	}
 
 	// TODO: replace with auth middleware values
-	userID    := r.Context().Value(middlewares.ContextUserID).(string)
+	userID := r.Context().Value(middlewares.ContextUserID).(string)
 	userEmail := r.Context().Value(middlewares.ContextUserEmail).(string)
 	// userID := "8473e7f9-2c72-4baf-b861-cd8238b15af6"
 	// userEmail := "hardcoded@email.com"
+
+	fmt.Println("UserID in handler:", userID)
+	fmt.Println("UserEmail in handler:", userEmail)
 
 	resp, err := fh.fileservice.InitUpload(ctx, userID, userEmail, req)
 	if err != nil {
@@ -171,7 +175,7 @@ func (fh *FileHandler) HandleErrorRequestFromPrinter(w http.ResponseWriter, r *h
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"mail":"sent"})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"mail": "sent"})
 }
 
 // HandleGetJobByToken godoc
@@ -267,7 +271,6 @@ func (fh *FileHandler) HandleExpireSessionAfterPrinting(
 		"message": "session marked as completed",
 	})
 }
-
 
 func (fh *FileHandler) HandleGetJobBySessionID(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
