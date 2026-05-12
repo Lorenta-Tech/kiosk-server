@@ -3,7 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	//"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -60,14 +60,17 @@ func (fh *FileHandler) HandleInitFileUpload(w http.ResponseWriter, r *http.Reque
 	// userID := "8473e7f9-2c72-4baf-b861-cd8238b15af6"
 	// userEmail := "hardcoded@email.com"
 
-	fmt.Println("UserID in handler:", userID)
-	fmt.Println("UserEmail in handler:", userEmail)
+	fh.logger.Info("USERID","userId:",userID)
+	fh.logger.Info("USEREMAIL","userEmail:",userEmail)
 
 	resp, err := fh.fileservice.InitUpload(ctx, userID, userEmail, req)
 	if err != nil {
 		utils.HandleError(w, fh.logger, err)
 		return
 	}
+
+	// 4cdc0b50-dc30-4ffb-903b-805c3e13b3f5
+	// jevitapearl@gmail.com
 
 	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"data": resp})
 }
@@ -126,8 +129,8 @@ func (fh *FileHandler) HandleGetRecentPrintJobs(w http.ResponseWriter, r *http.R
 	defer cancel()
 
 	// TODO: replace with auth middleware value
-	// userID := r.Context().Value(middlewares.UserIDKey).(string)
-	userID := "8473e7f9-2c72-4baf-b861-cd8238b15af6"
+	userID := r.Context().Value(middlewares.ContextUserID).(string)
+	// userID := "8473e7f9-2c72-4baf-b861-cd8238b15af6"
 
 	resp, err := fh.fileservice.GetRecentPrintJobs(ctx, userID)
 	if err != nil {
@@ -143,8 +146,8 @@ func (fh *FileHandler) HandleActivePrintJobs(w http.ResponseWriter, r *http.Requ
 	defer cancel()
 
 	// TODO: replace with auth middleware value
-	// userID := r.Context().Value(middlewares.UserIDKey).(string)
-	userID := "8473e7f9-2c72-4baf-b861-cd8238b15af6"
+	 userID := r.Context().Value(middlewares.ContextUserID).(string)
+	// userID := "8473e7f9-2c72-4baf-b861-cd8238b15af6"
 
 	resp, err := fh.fileservice.GetActivePrintJobs(ctx, userID)
 	if err != nil {
