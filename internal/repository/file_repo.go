@@ -202,10 +202,11 @@ func (r *PostgresFileRepo) GetRecentPrintJobs(ctx context.Context, userID string
 		SELECT id, user_id, user_email, status, total_amount, total_sheets, token, expires_at, created_at
 		FROM upload_sessions
 		WHERE user_id = $1
-		  AND status != 'created'
+		  AND status = 'completed'
 		ORDER BY created_at DESC
 		LIMIT $2
 	`
+
 	rows, err := r.db.QueryContext(ctx, query, userID, limit)
 	if err != nil {
 		return nil, apperror.Internal(
@@ -216,26 +217,37 @@ func (r *PostgresFileRepo) GetRecentPrintJobs(ctx context.Context, userID string
 	defer rows.Close()
 
 	sessions := make([]models.UploadSession, 0, limit)
+
 	for rows.Next() {
 		var s models.UploadSession
+
 		if err := rows.Scan(
-			&s.ID, &s.UserID, &s.UserEmail,
-			&s.Status, &s.TotalAmount, &s.TotalSheets, &s.Token,
-			&s.ExpiresAt, &s.CreatedAt,
+			&s.ID,
+			&s.UserID,
+			&s.UserEmail,
+			&s.Status,
+			&s.TotalAmount,
+			&s.TotalSheets,
+			&s.Token,
+			&s.ExpiresAt,
+			&s.CreatedAt,
 		); err != nil {
 			return nil, apperror.Internal(
 				"failed to scan print job row",
 				fmt.Errorf("repository.GetRecentPrintJobs scan: %w", err),
 			)
 		}
+
 		sessions = append(sessions, s)
 	}
+
 	if err := rows.Err(); err != nil {
 		return nil, apperror.Internal(
 			"error reading print job rows",
 			fmt.Errorf("repository.GetRecentPrintJobs rows.Err: %w", err),
 		)
 	}
+
 	return sessions, nil
 }
 

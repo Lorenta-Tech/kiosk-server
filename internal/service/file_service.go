@@ -36,7 +36,7 @@ func NewFileService(
 	mailclient *mail.ResendClient,
 	logger *slog.Logger,
 ) *FileService {
-	return &FileService{filerepo: filerepo, s3: s3, db: db,mailclient: mailclient, logger: logger}
+	return &FileService{filerepo: filerepo, s3: s3, db: db, mailclient: mailclient, logger: logger}
 }
 
 func (fs *FileService) InitUpload(
@@ -553,7 +553,7 @@ func (fs *FileService) ErrorRequestFromPrinter(
 func (fs *FileService) GetJobBySessionID(
 	ctx context.Context,
 	sessionId string,
-) (models.TokenJobResponse, error){
+) (models.TokenJobResponse, error) {
 	fs.logger.Info("get job by session ID started", "session_id", sessionId)
 
 	session, err := fs.filerepo.GetSessionByID(ctx, sessionId)
@@ -602,7 +602,6 @@ func (fs *FileService) GetJobBySessionID(
 
 //helpers
 
-
 func (fs *FileService) buildPrintJobs(ctx context.Context, sessions []models.UploadSession) ([]models.PrintJob, error) {
 	jobs := make([]models.PrintJob, 0, len(sessions))
 	for _, s := range sessions {
@@ -613,6 +612,7 @@ func (fs *FileService) buildPrintJobs(ctx context.Context, sessions []models.Upl
 		jobs = append(jobs, models.PrintJob{
 			SessionID:   s.ID,
 			Status:      s.Status,
+			Token:       s.Token,
 			TotalAmount: s.TotalAmount,
 			TotalSheets: s.TotalSheets,
 			CreatedAt:   s.CreatedAt,
