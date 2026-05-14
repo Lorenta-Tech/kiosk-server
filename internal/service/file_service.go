@@ -220,7 +220,7 @@ func (fs *FileService) ConfirmUpload(
 		}
 
 		price, sheets := utils.CalculateFilePrice(
-			f.NumOfPages, f.Copies, f.PageLayout,
+			f.NumOfPages,f.PageRange, f.Copies, f.PageLayout,
 			f.PrintingMode, f.PrintingSide,
 		)
 
