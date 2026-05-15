@@ -165,6 +165,8 @@ func (r *PostgresFileRepo) UpdateFileWithPrintOptions(ctx context.Context, f mod
 			file_status     = 'confirmed'
 		WHERE id = $8 AND session_id = $9
 	`
+
+	fmt.Println("DEBUG: PageRange in UpdateFileWithPrintOptions:", f.PageRange)
 	_, err := r.db.ExecContext(ctx, query,
 		f.PrintingMode, f.PrintingSide,
 		pq.Array(f.PageRange),

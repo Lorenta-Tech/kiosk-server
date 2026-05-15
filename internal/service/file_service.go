@@ -258,6 +258,8 @@ func (fs *FileService) ConfirmUpload(
 			},
 		})
 
+		fs.logger.Info("Page Range bebugging","page_range:",dbFile.PageRange)
+
 		fs.logger.Info("file confirmed",
 			"session_id", req.SessionID,
 			"file_id", f.FileID,
