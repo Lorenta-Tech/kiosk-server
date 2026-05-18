@@ -95,7 +95,7 @@ func NewApplication() (*Application, error) {
 	fileservice := service.NewFileService(filerepo, s3Client, pgdb, mailClient, logger)
 	fileHandler := handler.NewFileHandler(fileservice, logger)
 
-	// User / Auth feature
+	// Users feature
 	userrepo := repository.NewUserRepository(pgdb)
 	userservice := service.NewUserService(userrepo, logger, jwtSecret, googleClientID)
 	userHandler := handler.NewUserHandler(userservice, logger)
