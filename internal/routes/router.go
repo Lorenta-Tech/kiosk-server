@@ -52,6 +52,7 @@ func fileRoutes(app *app.Application, r chi.Router) {
 	r.Post("/print/jobs/token", app.FileHandler.HandleGetJobByToken)
 	r.Post("/print/jobs/error",app.FileHandler.HandleErrorRequestFromPrinter)
     r.Post("/print/jobs/expire" , app.FileHandler.HandleExpireSessionAfterPrinting)
+	//r.Get("/admin/getprintjobs",app.FileHandler.HandleFetchPrintJobs)
 	r.Route("/files", func(r chi.Router) {
 		r.Use(middlewares.AuthMiddleware(app.JWTSecret))
 		r.Post("/upload/init", app.FileHandler.HandleInitFileUpload)

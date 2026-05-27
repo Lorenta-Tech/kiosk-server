@@ -77,6 +77,7 @@ func NewApplication() (*Application, error) {
 		return nil, fmt.Errorf("s3 unreachable: %w", err)
 	}
 
+	//mail client
 	mailClient, err := mail.NewResendClient()
 	if err != nil {
 		return nil, fmt.Errorf("failed to innitialize mail client:%w",err)

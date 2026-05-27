@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/big"
+	"sort"
 	"strconv"
 	"time"
 
@@ -220,7 +221,7 @@ func (fs *FileService) ConfirmUpload(
 		}
 
 		price, sheets := utils.CalculateFilePrice(
-			f.NumOfPages,f.PageRange, f.Copies, f.PageLayout,
+			f.NumOfPages, f.PageRange, f.Copies, f.PageLayout,
 			f.PrintingMode, f.PrintingSide,
 		)
 
@@ -258,7 +259,7 @@ func (fs *FileService) ConfirmUpload(
 			},
 		})
 
-		fs.logger.Info("Page Range bebugging","page_range:",dbFile.PageRange)
+		fs.logger.Info("Page Range bebugging", "page_range:", dbFile.PageRange)
 
 		fs.logger.Info("file confirmed",
 			"session_id", req.SessionID,
@@ -602,6 +603,127 @@ func (fs *FileService) GetJobBySessionID(
 	}, nil
 }
 
+// Admin service methods
+// NEED TO BE FIX
+func (fs *FileService) FetchPrintHistory(
+	ctx context.Context,
+	limit int,
+	offset int,
+) (models.RecentPrintJobsResponse, error) {
+
+	fs.logger.Info(
+		"fetch print history called",
+		"limit", limit,
+		"offset", offset,
+	)
+
+	rows, err := fs.filerepo.FetchPrintHistory(
+		ctx,
+		limit,
+		offset,
+	)
+	if err != nil {
+		return models.RecentPrintJobsResponse{}, err
+	}
+
+	if len(rows) == 0 {
+		return models.RecentPrintJobsResponse{
+			Jobs:  []models.PrintJob{},
+			Total: 0,
+		}, nil
+	}
+
+	jobsMap := make(map[string]*models.PrintJob)
+
+	for _, row := range rows {
+
+		job, exists := jobsMap[row.SessionID]
+
+		if !exists {
+
+			job = &models.PrintJob{
+				SessionID:   row.SessionID,
+				Status:      row.Status,
+				Token:       row.Token,
+				TotalAmount: &row.TotalAmount,
+				TotalSheets: &row.TotalSheets,
+				CreatedAt:   row.CreatedAt,
+				Files:       []models.PrintJobFile{},
+			}
+
+			jobsMap[row.SessionID] = job
+		}
+
+		// skip if no file
+		if row.FileID != nil {
+
+			job.Files = append(job.Files, models.PrintJobFile{
+				FileID:        derefString(row.FileID),
+				FileName:      derefString(row.FileName),
+				PrintingMode:  row.PrintingMode,
+				PrintingSide:  row.PrintingSide,
+				PageRange:     intSliceToStringSlice(row.PageRange),
+				PageLayout:    stringPtrToIntPtr(row.PageLayout),
+				Copies:        row.Copies,
+				NumberOfPages: row.NumberOfPages,
+				Price:         row.Price,
+				FileStatus:    derefString(row.FileStatus),
+			})
+		}
+	}
+
+	jobs := make([]models.PrintJob, 0, len(jobsMap))
+
+	for _, job := range jobsMap {
+		jobs = append(jobs, *job)
+	}
+
+	sort.Slice(jobs, func(i, j int) bool {
+		return jobs[i].CreatedAt.After(jobs[j].CreatedAt)
+	})
+
+	fs.logger.Info(
+		"fetch print history completed",
+		"job_count", len(jobs),
+	)
+
+	return models.RecentPrintJobsResponse{
+		Jobs:  jobs,
+		Total: len(jobs),
+	}, nil
+}
+
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+func intSliceToStringSlice(nums []int) []string {
+
+	result := make([]string, 0, len(nums))
+
+	for _, n := range nums {
+		result = append(result, strconv.Itoa(n))
+	}
+
+	return result
+}
+
+func stringPtrToIntPtr(s *string) *int {
+
+	if s == nil {
+		return nil
+	}
+
+	v, err := strconv.Atoi(*s)
+	if err != nil {
+		return nil
+	}
+
+	return &v
+}
 //helpers
 
 func (fs *FileService) buildPrintJobs(ctx context.Context, sessions []models.UploadSession) ([]models.PrintJob, error) {
@@ -663,4 +785,25 @@ func generateToken() (int, error) {
 		return 0, err
 	}
 	return int(n.Int64()) + 100000, nil
+}
+
+func safeString(v *string) string {
+	if v == nil {
+		return ""
+	}
+	return *v
+}
+
+func safeInt(v *int) int {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
+func safeFloat(v *float64) float64 {
+	if v == nil {
+		return 0
+	}
+	return *v
 }

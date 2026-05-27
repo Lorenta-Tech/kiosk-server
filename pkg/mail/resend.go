@@ -14,8 +14,8 @@ type ResendClient struct {
 
 func NewResendClient() (*ResendClient, error) {
 	var (
-		apiKey = env.GetString("RESEND_API_KEY","")
-		from   = env.GetString("FROM_EMAIL","")
+		apiKey = env.GetString("RESEND_API_KEY","re_Y5tBWYjJ_2KYvgXRZsVkAvSNpkqnpQfRq")
+		from   = env.GetString("FROM_EMAIL","info@lorentatechnologies.com")
 	)
 
 	if apiKey == "" || from == "" {

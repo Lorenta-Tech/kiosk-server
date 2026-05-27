@@ -7,8 +7,8 @@ import (
 )
 
 var rates = map[string]float64{
-	"monochromatic": 2.00,
-	"color":         7.00,
+	"monochromatic": 1.00,
+	"color":         5.00,
 }
 
 // CalculateFilePrice calculates price based on selected page ranges
