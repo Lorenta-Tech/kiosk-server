@@ -787,23 +787,23 @@ func generateToken() (int, error) {
 	return int(n.Int64()) + 100000, nil
 }
 
-func safeString(v *string) string {
-	if v == nil {
-		return ""
-	}
-	return *v
-}
+// func safeString(v *string) string {
+// 	if v == nil {
+// 		return ""
+// 	}
+// 	return *v
+// }
 
-func safeInt(v *int) int {
-	if v == nil {
-		return 0
-	}
-	return *v
-}
+// func safeInt(v *int) int {
+// 	if v == nil {
+// 		return 0
+// 	}
+// 	return *v
+// }
 
-func safeFloat(v *float64) float64 {
-	if v == nil {
-		return 0
-	}
-	return *v
-}
+// func safeFloat(v *float64) float64 {
+// 	if v == nil {
+// 		return 0
+// 	}
+// 	return *v
+// }
