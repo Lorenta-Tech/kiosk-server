@@ -80,7 +80,7 @@ func NewApplication() (*Application, error) {
 	//mail client
 	mailClient, err := mail.NewResendClient()
 	if err != nil {
-		return nil, fmt.Errorf("failed to innitialize mail client:%w",err)
+		return nil, fmt.Errorf("failed to innitialize mail client:%w", err)
 	}
 
 	logger.Info("s3 client initialized", "bucket", env.GetString("BUCKET", "aiet-printflow-upload-prod"))
@@ -91,15 +91,15 @@ func NewApplication() (*Application, error) {
 	razorpaySecret := env.GetString("RZP_SECRET", "")
 	webhookSecret := env.GetString("RZP_WEBHOOK_SECRET", "")
 
-	// File feature
-	filerepo := repository.NewFileRepository(pgdb)
-	fileservice := service.NewFileService(filerepo, s3Client, pgdb, mailClient, logger)
-	fileHandler := handler.NewFileHandler(fileservice, logger)
-
 	// Users feature
 	userrepo := repository.NewUserRepository(pgdb)
 	userservice := service.NewUserService(userrepo, logger, jwtSecret, googleClientID)
 	userHandler := handler.NewUserHandler(userservice, logger)
+
+	// File feature
+	filerepo := repository.NewFileRepository(pgdb)
+	fileservice := service.NewFileService(filerepo, userrepo, s3Client, pgdb, mailClient, logger)
+	fileHandler := handler.NewFileHandler(fileservice, logger)
 
 	// Payment feature
 	paymentRepo := repository.NewPaymentRepository(pgdb)

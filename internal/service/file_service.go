@@ -24,6 +24,7 @@ const defaultRecentJobsLimit = 10
 
 type FileService struct {
 	filerepo   repository.FileRepo
+	userrepo   repository.UserRepo
 	s3         *s3pkg.Client
 	db         *sql.DB
 	mailclient *mail.ResendClient
@@ -32,12 +33,13 @@ type FileService struct {
 
 func NewFileService(
 	filerepo repository.FileRepo,
+	userrepo repository.UserRepo,
 	s3 *s3pkg.Client,
 	db *sql.DB,
 	mailclient *mail.ResendClient,
 	logger *slog.Logger,
 ) *FileService {
-	return &FileService{filerepo: filerepo, s3: s3, db: db, mailclient: mailclient, logger: logger}
+	return &FileService{filerepo: filerepo, userrepo: userrepo, s3: s3, db: db, mailclient: mailclient, logger: logger}
 }
 
 func (fs *FileService) InitUpload(
@@ -319,6 +321,15 @@ func (fs *FileService) GetRecentPrintJobs(
 
 	fs.logger.Info("get recent print jobs started", "user_id", userID)
 
+	exist,err := fs.userrepo.CheckUserExists(ctx,userID)
+
+	if !exist {
+		return models.RecentPrintJobsResponse{}, apperror.NotFound(
+			"user_not_found in the database, please logout and login again",
+			"user not found",
+		)
+	}
+
 	sessions, err := fs.filerepo.GetRecentPrintJobs(ctx, userID, defaultRecentJobsLimit)
 	if err != nil {
 		return models.RecentPrintJobsResponse{}, err
@@ -348,6 +359,14 @@ func (fs *FileService) GetActivePrintJobs(
 ) (models.RecentPrintJobsResponse, error) {
 
 	fs.logger.Info("get recent print jobs started", "user_id", userID)
+
+	exist,err := fs.userrepo.CheckUserExists(ctx,userID)
+	if !exist {
+		return models.RecentPrintJobsResponse{}, apperror.NotFound(
+			"user_not_found in the database, please logout and login with old google account to get active orders",
+			"user not found",
+		)
+	}
 
 	sessions, err := fs.filerepo.GetActivePrintJobs(ctx, userID)
 	if err != nil {
