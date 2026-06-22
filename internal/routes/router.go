@@ -3,7 +3,7 @@ package routes
 import (
 	"net/http"
 	"time"
-
+	//"fmt"
 	"github.com/Lorenta-Tech/kiosk-server/internal/app"
 	"github.com/Lorenta-Tech/kiosk-server/internal/middlewares"
 	"github.com/go-chi/chi/v5"
@@ -36,6 +36,7 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 		authRoutes(app, r)
 		fileRoutes(app, r)
 		paymentRoutes(app, r)
+		notesRoutes(app, r)
 	})
 
 	return r
@@ -70,4 +71,29 @@ func paymentRoutes(app *app.Application, r chi.Router) {
 		r.Get("/status/{session_id}", app.PaymentHandler.HandleGetPaymentStatus)
 	})
 	r.Post("/webhooks/razorpay", app.PaymentHandler.HandleWebhook)
+}
+
+func notesRoutes(app *app.Application, r chi.Router) {
+
+    // Admin routes — NO auth middleware during testing
+    // TODO: add dept admin auth middleware before production
+    r.Route("/admin", func(r chi.Router) {
+        r.Post("/notes/upload/init",    app.NotesHandler.HandleInitNoteUpload)
+        r.Post("/notes/upload/confirm", app.NotesHandler.HandleConfirmNoteUpload)
+        r.Put("/notes/{note_id}",       app.NotesHandler.HandleUpdateNote)
+        r.Delete("/notes/{note_id}",    app.NotesHandler.HandleDeleteNote)//todo: hard delete
+        r.Post("/subjects",             app.NotesHandler.HandleCreateSubject)
+    })
+
+    // Student routes — keep auth middleware, students use Google JWT
+    r.Route("/notes", func(r chi.Router) {
+        r.Use(middlewares.AuthMiddleware(app.JWTSecret))
+        r.Get("/branches",                           app.NotesHandler.HandleListBranches)
+        r.Get("/branches/{branch_id}/semesters",     app.NotesHandler.HandleListSemesters)
+        r.Get("/semesters/{semester_id}/subjects",   app.NotesHandler.HandleListSubjects)
+        r.Get("/subjects/{subject_id}/modules",      app.NotesHandler.HandleListModules)
+        r.Get("/modules/{module_id}/notes",          app.NotesHandler.HandleListNotes)
+        r.Get("/{note_id}/view",                     app.NotesHandler.HandleGetNoteViewURL)
+        r.Post("/print/init",                        app.NotesHandler.HandleNotesPrintInit)
+    })
 }
