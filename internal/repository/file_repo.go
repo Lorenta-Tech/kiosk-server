@@ -46,7 +46,7 @@ type FileRepo interface {
 
 	//admin 
 	// NEED TO BE FIX
-	FetchPrintHistory(ctx context.Context, limit int, offset int) ([]models.PrintHistoryRow, error)
+	AdminFetchPrintHistory(ctx context.Context, limit int, offset int) ([]models.AdminPrintHistoryResponse, error)
 }
 
 // Implementation
@@ -472,96 +472,8 @@ func (r *PostgresFileRepo) GetActivePrintJobs(
 	return sessions, nil
 }
 
-
-func (r *PostgresFileRepo) FetchPrintHistory(
-	ctx context.Context,
-	limit int,
-	offset int,
-) ([]models.PrintHistoryRow, error) {
-
-	const query = `
-		SELECT
-			us.id AS session_id,
-			us.status,
-			us.token,
-			us.total_amount,
-			us.total_sheets,
-			us.created_at,
-
-			uf.id AS file_id,
-			uf.file_name,
-			uf.printing_mode,
-			uf.printing_side,
-			uf.page_range,
-			uf.page_layout,
-			uf.copies,
-			uf.number_of_pages,
-			uf.price,
-			uf.file_status
-
-		FROM upload_sessions us
-
-		LEFT JOIN upload_files uf
-			ON uf.session_id = us.id
-
-		WHERE us.status = 'completed'
-
-		ORDER BY us.created_at DESC
-
-		LIMIT $1 OFFSET $2
-	`
-
-	rows, err := r.db.QueryContext(ctx, query, limit, offset)
-	if err != nil {
-		return nil, apperror.Internal(
-			"failed to fetch print history",
-			fmt.Errorf("repository.FetchPrintHistory: %w", err),
-		)
-	}
-	defer rows.Close()
-
-	history := make([]models.PrintHistoryRow, 0)
-
-	for rows.Next() {
-
-		var row models.PrintHistoryRow
-
-		err := rows.Scan(
-			&row.SessionID,
-			&row.Status,
-			&row.Token,
-			&row.TotalAmount,
-			&row.TotalSheets,
-			&row.CreatedAt,
-
-			&row.FileID,
-			&row.FileName,
-			&row.PrintingMode,
-			&row.PrintingSide,
-			pq.Array(&row.PageRange),
-			&row.PageLayout,
-			&row.Copies,
-			&row.NumberOfPages,
-			&row.Price,
-			&row.FileStatus,
-		)
-
-		if err != nil {
-			return nil, apperror.Internal(
-				"failed to scan print history row",
-				fmt.Errorf("repository.FetchPrintHistory scan: %w", err),
-			)
-		}
-
-		history = append(history, row)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, apperror.Internal(
-			"failed reading print history rows",
-			fmt.Errorf("repository.FetchPrintHistory rows.Err: %w", err),
-		)
-	}
-
-	return history, nil
+func (r *PostgresFileRepo) AdminFetchPrintHistory(ctx context.Context, limit int, offset int) ([]models.AdminPrintHistoryResponse, error) {
+	// Implement the logic to fetch print history
+	// This is a placeholder for the actual implementation
+	return nil, nil
 }

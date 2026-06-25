@@ -298,17 +298,3 @@ func (fh *FileHandler) HandleGetJobBySessionID(w http.ResponseWriter, r *http.Re
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
 }
-
-// need to FIX
-func (fh *FileHandler) HandleFetchPrintJobs(w http.ResponseWriter, r *http.Request) {
-	ctx,cancel := context.WithTimeout(r.Context(), 30*time.Second)
-	defer cancel()
-
-	resp, err := fh.fileservice.FetchPrintHistory(ctx, 1000, 0)
-	if err != nil {
-		utils.HandleError(w, fh.logger, err)
-		return
-	}
-
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
-}

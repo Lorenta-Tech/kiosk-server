@@ -154,27 +154,6 @@ type TokenJobResponse struct {
 }
 
 
-
-// ================================
-// MODELS
-// ================================
-//NEED TO BE FIX
-type PrintHistoryRow struct {
-	SessionID   string
-	Status      string
-	Token       string
-	TotalAmount float64
-	TotalSheets int
-	CreatedAt   time.Time
-
-	FileID        *string
-	FileName      *string
-	PrintingMode  *string
-	PrintingSide  *string
-	PageRange     []int
-	PageLayout    *string
-	Copies        *int
-	NumberOfPages *int
-	Price         *float64
-	FileStatus    *string
+type AdminPrintHistoryResponse struct {
+	History []PrintJob `json:"history"`
 }

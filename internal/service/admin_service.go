@@ -1,19 +1,27 @@
 package service
 
-// import (
-// 	"github.com/Lorenta-Tech/kiosk-server/internal/models"
-// 	"github.com/Lorenta-Tech/kiosk-server/internal/repository"
-// )
+import (
+	"log/slog"
 
-// type AdminService struct {
-// 	filerepo repository.FileRepo
-// }
+	"github.com/Lorenta-Tech/kiosk-server/internal/repository"
+)
 
-// func NewAdminService(fileRepo repository.FileRepo) *AdminService {
-// 	return &AdminService{filerepo: fileRepo}
-// }
+type AdminRepo struct {
+	filerepo   repository.FileRepo
+	adminrepo repository.AdminRepository
+	logger     *slog.Logger
+}
 
-// func (as *AdminService) FetchPrintJobs()(models.RecentPrintJobsResponse,error){
+func NewAdminRepo(filerepo repository.FileRepo, adminrepo repository.AdminRepository, logger *slog.Logger) *AdminRepo {
+	return &AdminRepo{
+		filerepo:   filerepo,
+		adminrepo: adminrepo,
+		logger:     logger,
+	}
+}
 
-// 	return models.RecentPrintJobsResponse{}, nil
-// }
+func (s *AdminRepo) FetchPrintHistory() {
+	// Implement the logic to fetch print history
+	// This is a placeholder for the actual implementation
+	s.logger.Info("FetchPrintHistory called")
+}
