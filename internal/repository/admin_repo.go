@@ -1,9 +1,11 @@
 package repository
 
-type AdminRepository struct {
-
+type PostgresAdminRepo struct {
+	db DBTX
+}
+func NewAdminRepository(db DBTX) *PostgresAdminRepo {
+	return &PostgresAdminRepo{db: db}
 }
 
-func NewAdminRepository() *AdminRepository {
-	return &AdminRepository{}
+type AdminRepo interface {
 }

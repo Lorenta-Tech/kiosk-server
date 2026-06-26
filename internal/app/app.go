@@ -27,6 +27,7 @@ type Application struct {
 	FileHandler    *handler.FileHandler
 	UserHandler    *handler.UserHandler
 	PaymentHandler *handler.PaymentHandler
+	AdminHandler   *handler.AdminHandler
 	JWTSecret      string
 }
 
@@ -106,6 +107,11 @@ func NewApplication() (*Application, error) {
 	paymentService := service.NewPaymentService(paymentRepo, filerepo, pgdb, s3Client, logger, razorpayKey, razorpaySecret, webhookSecret)
 	paymentHandler := handler.NewPaymentHandler(paymentService, logger)
 
+	//admin feature 
+	adminrepo := repository.NewAdminRepository(pgdb)
+	adminservice := service.NewAdminRepo(filerepo, adminrepo, logger)
+	adminHandler := handler.NewAdminHandler(adminservice, logger)
+
 	app := &Application{
 		DB:             pgdb,
 		Logger:         logger,
@@ -114,6 +120,7 @@ func NewApplication() (*Application, error) {
 		UserHandler:    userHandler,
 		JWTSecret:      jwtSecret,
 		PaymentHandler: paymentHandler,
+		AdminHandler:   adminHandler,
 	}
 
 	return app, nil

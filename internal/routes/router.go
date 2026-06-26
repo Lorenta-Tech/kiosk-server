@@ -36,6 +36,7 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 		authRoutes(app, r)
 		fileRoutes(app, r)
 		paymentRoutes(app, r)
+		adminRoutes(app, r)
 	})
 
 	return r
@@ -70,4 +71,10 @@ func paymentRoutes(app *app.Application, r chi.Router) {
 		r.Get("/status/{session_id}", app.PaymentHandler.HandleGetPaymentStatus)
 	})
 	r.Post("/webhooks/razorpay", app.PaymentHandler.HandleWebhook)
+}
+
+func adminRoutes(app *app.Application, r chi.Router) {
+	r.Route("/admin", func(r chi.Router) {
+		r.Get("/print/history", app.AdminHandler.HandleFetchPrintHistory)
+	})
 }
