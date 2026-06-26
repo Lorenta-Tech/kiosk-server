@@ -19,6 +19,9 @@ import (
 //   - Unknown errors → always 500, never leak internals to the client
 func HandleError(w http.ResponseWriter, logger *slog.Logger, err error) {
 	var appErr *apperror.AppError
+	if logger == nil {
+		logger = slog.Default()
+	}
 	if apperror.As(err, &appErr) {
 		if appErr.Status >= 500 {
 			logger.Error(appErr.Message,

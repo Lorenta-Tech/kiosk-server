@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -18,19 +19,19 @@ const (
 	ContextUserName  contextKey = "user_name"
 )
 
-func AuthMiddleware(jwtSecret string) func(http.Handler) http.Handler {
+func AuthMiddleware(jwtSecret string,logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				utils.HandleError(w, nil, apperror.Unauthorized("authorization header is missing"))
+				utils.HandleError(w, logger, apperror.Unauthorized("authorization header is missing"))
 				return
 			}
 
 			parts := strings.SplitN(authHeader, " ", 2)
 			if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-				utils.HandleError(w, nil, apperror.Unauthorized("authorization header format must be: Bearer <token>"))
+				utils.HandleError(w, logger, apperror.Unauthorized("authorization header format must be: Bearer <token>"))
 				return
 			}
 
@@ -38,7 +39,7 @@ func AuthMiddleware(jwtSecret string) func(http.Handler) http.Handler {
 
 			claims, err := appjwt.Parse(jwtSecret, tokenStr)
 			if err != nil {
-				utils.HandleError(w, nil, err)
+				utils.HandleError(w, logger, err)
 				return
 			}
 
