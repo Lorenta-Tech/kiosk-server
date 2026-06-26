@@ -76,5 +76,9 @@ func paymentRoutes(app *app.Application, r chi.Router) {
 func adminRoutes(app *app.Application, r chi.Router) {
 	r.Route("/admin", func(r chi.Router) {
 		r.Get("/print/history", app.AdminHandler.HandleFetchPrintHistory)
+		r.Get("/print/revenue", app.AdminHandler.HandleGetTotalRevenue)
+		r.Get("/print/totalsheetsprinted",app.AdminHandler.HandleGetTotalSheetsPrinted)
+		r.Get("/print/colorsheets",app.AdminHandler.HandleGetTotalColorSheetsPrinted)
+		r.Get("/print/blackandwhite",app.AdminHandler.HandleGetTotalBlackAndWhiteSheetsPrinted)
 	})
 }

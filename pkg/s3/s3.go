@@ -160,7 +160,7 @@ func (c *Client) PromoteFile(ctx context.Context, stagingKey string) (string, er
 }
 
 // extra function just used when need to mannual cleanup.
-func (c *Client) DeleteStagingFile(ctx context.Context, stagingKey string) error {
+func (c *Client) DeleteFile(ctx context.Context, stagingKey string) error {
 	_, err := c.s3.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(c.bucket),
 		Key:    aws.String(stagingKey),

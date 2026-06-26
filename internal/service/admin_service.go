@@ -27,5 +27,25 @@ func (s *AdminRepo) AdminFetchPrintHistory(ctx context.Context) ([]models.PrintJ
 	// This is a placeholder for the actual implementation
 	
 	s.logger.Info("FetchPrintHistory called")
-	return s.filerepo.AdminFetchPrintHistory(ctx)
+	return s.adminrepo.AdminFetchPrintHistory(ctx)
+}
+
+func (s *AdminRepo) AdminGetTotalRevenue(ctx context.Context) (float64, error) {
+	s.logger.Info("AdminGetTotalRevenue called")
+	return s.adminrepo.AdminGetTotalRevenue(ctx)
+}
+
+func (s *AdminRepo) AdminGetTotalSheetsPrinted(ctx context.Context) (int, error) {
+	s.logger.Info("AdminGetTotalSheetsPrinted called")
+	return s.adminrepo.AdminGetTotalSheetsPrinted(ctx)
+}
+
+func (s *AdminRepo) AdminGetTotalColorSheetsPrinted(ctx context.Context) (int, error) {
+	s.logger.Info("AdminGetTotalColorSheetsPrinted called")
+	return s.adminrepo.AdminGetTotalColorSheetsPrinted(ctx)
+}
+
+func (s *AdminRepo) AdminGetTotalBlackAndWhiteSheetsPrinted(ctx context.Context) (int, error) {
+	s.logger.Info("AdminGetTotalBlackAndWhiteSheetsPrinted called")
+	return s.adminrepo.AdminGetTotalBlackAndWhiteSheetsPrinted(ctx)
 }

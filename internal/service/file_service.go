@@ -320,7 +320,7 @@ func (fs *FileService) GetRecentPrintJobs(
 
 	fs.logger.Info("get recent print jobs started", "user_id", userID)
 
-	exist,err := fs.userrepo.CheckUserExists(ctx,userID)
+	exist, err := fs.userrepo.CheckUserExists(ctx, userID)
 
 	if !exist {
 		return models.RecentPrintJobsResponse{}, apperror.NotFound(
@@ -359,7 +359,7 @@ func (fs *FileService) GetActivePrintJobs(
 
 	fs.logger.Info("get recent print jobs started", "user_id", userID)
 
-	exist,err := fs.userrepo.CheckUserExists(ctx,userID)
+	exist, err := fs.userrepo.CheckUserExists(ctx, userID)
 	if !exist {
 		return models.RecentPrintJobsResponse{}, apperror.NotFound(
 			"user_not_found in the database, please logout and login with old google account to get active orders",
@@ -509,11 +509,26 @@ func (fs *FileService) ExpireSessionAfterPrinting(
 	if err := fs.filerepo.ExpireSessionAfterPrinting(ctx, req.SessionID); err != nil {
 		return err
 	}
-
 	fs.logger.Info("session marked completed",
 		"session_id", req.SessionID,
 	)
 
+	key, err := fs.filerepo.GetFinalKeyBySessionID(ctx, req.SessionID)
+	if err != nil {
+		return err
+	}
+	
+
+	if err := fs.s3.DeleteFile(ctx, key); err != nil {
+		return apperror.Internal(
+			"failed to delete file from S3 after session completion",
+			err,
+		)
+	}
+	fs.logger.Info("file deleted from S3 after session completion",
+		"session_id", req.SessionID,
+		"final_key", key,
+	)
 	return nil
 }
 func (fs *FileService) ErrorRequestFromPrinter(
@@ -621,8 +636,6 @@ func (fs *FileService) GetJobBySessionID(
 	}, nil
 }
 
-
-
 func derefString(s *string) string {
 	if s == nil {
 		return ""
@@ -654,6 +667,7 @@ func stringPtrToIntPtr(s *string) *int {
 
 	return &v
 }
+
 //helpers
 
 func (fs *FileService) buildPrintJobs(ctx context.Context, sessions []models.UploadSession) ([]models.PrintJob, error) {
