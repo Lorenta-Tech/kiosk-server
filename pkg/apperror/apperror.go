@@ -42,6 +42,14 @@ func BadRequest(code, msg string) *AppError {
 	}
 }
 
+func Conflict(code, msg string) *AppError {
+	return &AppError{
+		Code:    code,
+		Message: msg,
+		Status:  http.StatusConflict, // 409
+	}
+}
+
 func NotFound(code, msg string) *AppError {
 	return &AppError{
 		Code:    code,
@@ -68,4 +76,12 @@ func UnprocessableEntity(code, msg string) *AppError {
 
 func As(err error, target **AppError) bool {
 	return errors.As(err, target)
+}
+
+func Forbidden(msg string) *AppError {
+	return &AppError{
+		Code:    "forbidden",
+		Message: msg,
+		Status:  http.StatusForbidden,
+	}
 }

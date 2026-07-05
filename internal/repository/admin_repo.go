@@ -1,9 +1,9 @@
 package repository
 
-type AdminRepository struct {
+// type AdminRepository struct {
 
-}
+// }
 
-func NewAdminRepository() *AdminRepository {
-	return &AdminRepository{}
-}
+// func NewAdminRepository() *AdminRepository {
+// 	return &AdminRepository{}
+// }

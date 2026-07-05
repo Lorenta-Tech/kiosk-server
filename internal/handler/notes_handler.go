@@ -28,6 +28,23 @@ func NewNotesHandler(notesservice *service.NotesService, logger *slog.Logger) *N
 }
 
 // ================================================================
+// helper — pulls the authenticated admin's ID out of context.
+// Set by middlewares.RequireRole after successful dept-admin /
+// super-admin token verification. Returns a clean 401 instead of
+// panicking if it's ever missing (defense in depth — RequireRole
+// should always set this, but handlers shouldn't trust that blindly).
+// ================================================================
+
+func adminIDFromContext(w http.ResponseWriter, r *http.Request, logger *slog.Logger) (string, bool) {
+	adminID, ok := r.Context().Value(middlewares.ContextAdminID).(string)
+	if !ok || adminID == "" {
+		utils.HandleError(w, logger, apperror.Unauthorized("missing admin identity"))
+		return "", false
+	}
+	return adminID, true
+}
+
+// ================================================================
 // ADMIN — HandleInitNoteUpload
 // POST /admin/notes/upload/init
 // ================================================================
@@ -47,9 +64,10 @@ func (nh *NotesHandler) HandleInitNoteUpload(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// TEMP: hardcoded for testing — uncomment real line and remove fake one before production
-	adminID := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-	// adminID := r.Context().Value(middlewares.ContextUserID).(string)
+	adminID, ok := adminIDFromContext(w, r, nh.logger)
+	if !ok {
+		return
+	}
 
 	resp, err := nh.notesservice.InitNoteUpload(ctx, adminID, req)
 	if err != nil {
@@ -80,9 +98,10 @@ func (nh *NotesHandler) HandleConfirmNoteUpload(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// TEMP: hardcoded for testing — uncomment real line and remove fake one before production
-	adminID := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-	// adminID := r.Context().Value(middlewares.ContextUserID).(string)
+	adminID, ok := adminIDFromContext(w, r, nh.logger)
+	if !ok {
+		return
+	}
 
 	if err := nh.notesservice.ConfirmNoteUpload(ctx, adminID, req); err != nil {
 		utils.HandleError(w, nh.logger, err)
@@ -118,9 +137,10 @@ func (nh *NotesHandler) HandleUpdateNote(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// TEMP: hardcoded for testing — uncomment real line and remove fake one before production
-	adminID := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-	// adminID := r.Context().Value(middlewares.ContextUserID).(string)
+	adminID, ok := adminIDFromContext(w, r, nh.logger)
+	if !ok {
+		return
+	}
 
 	if err := nh.notesservice.UpdateNote(ctx, adminID, noteID, req); err != nil {
 		utils.HandleError(w, nh.logger, err)
@@ -145,9 +165,10 @@ func (nh *NotesHandler) HandleDeleteNote(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// TEMP: hardcoded for testing — uncomment real line and remove fake one before production
-	adminID := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-	// adminID := r.Context().Value(middlewares.ContextUserID).(string)
+	adminID, ok := adminIDFromContext(w, r, nh.logger)
+	if !ok {
+		return
+	}
 
 	if err := nh.notesservice.DeleteNote(ctx, adminID, noteID); err != nil {
 		utils.HandleError(w, nh.logger, err)
@@ -177,9 +198,10 @@ func (nh *NotesHandler) HandleCreateSubject(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// TEMP: hardcoded for testing — uncomment real line and remove fake one before production
-	adminID := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
-	// adminID := r.Context().Value(middlewares.ContextUserID).(string)
+	adminID, ok := adminIDFromContext(w, r, nh.logger)
+	if !ok {
+		return
+	}
 
 	resp, err := nh.notesservice.CreateSubject(ctx, adminID, req)
 	if err != nil {
@@ -359,5 +381,5 @@ func (nh *NotesHandler) HandleNotesPrintInit(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"data": resp})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
 }

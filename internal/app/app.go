@@ -21,14 +21,15 @@ import (
 )
 
 type Application struct {
-	DB             *sql.DB
-	Logger         *slog.Logger
-	S3             *s3.Client
-	FileHandler    *handler.FileHandler
-	UserHandler    *handler.UserHandler
-	PaymentHandler *handler.PaymentHandler
-	NotesHandler   *handler.NotesHandler		// new line added for notes
-	JWTSecret      string
+	DB               *sql.DB
+	Logger           *slog.Logger
+	S3               *s3.Client
+	FileHandler      *handler.FileHandler
+	UserHandler      *handler.UserHandler
+	PaymentHandler   *handler.PaymentHandler
+	NotesHandler     *handler.NotesHandler // new line added for notes
+	DeptAdminHandler *handler.DeptAdminHandler
+	JWTSecret        string
 }
 
 func NewApplication() (*Application, error) {
@@ -81,7 +82,7 @@ func NewApplication() (*Application, error) {
 	//mail client
 	mailClient, err := mail.NewResendClient()
 	if err != nil {
-		return nil, fmt.Errorf("failed to innitialize mail client:%w",err)
+		return nil, fmt.Errorf("failed to innitialize mail client:%w", err)
 	}
 
 	logger.Info("s3 client initialized", "bucket", env.GetString("BUCKET", "aiet-printflow-upload-prod"))
@@ -107,21 +108,36 @@ func NewApplication() (*Application, error) {
 	paymentService := service.NewPaymentService(paymentRepo, filerepo, pgdb, s3Client, logger, razorpayKey, razorpaySecret, webhookSecret)
 	paymentHandler := handler.NewPaymentHandler(paymentService, logger)
 
-	//Notes feature 
-	notesrepo    := repository.NewNotesRepository(pgdb)
+	//Notes feature
+	notesrepo := repository.NewNotesRepository(pgdb)
 	notesservice := service.NewNotesService(notesrepo, filerepo, pgdb, s3Client, logger)
 	notesHandler := handler.NewNotesHandler(notesservice, logger)
 
-	
+	adminRepo := repository.NewAdminRepository(pgdb)
+
+	deptAdminService := service.NewDeptAdminService(
+		adminRepo,
+		logger,
+		jwtSecret,
+		env.GetString("SUPER_ADMIN_EMAIL", ""),
+		env.GetString("SUPER_ADMIN_PASSWORD", ""),
+	)
+
+	deptAdminHandler := handler.NewDeptAdminHandler(
+		deptAdminService,
+		logger,
+	)
+
 	app := &Application{
-		DB:             pgdb,
-		Logger:         logger,
-		S3:             s3Client,
-		FileHandler:    fileHandler,
-		UserHandler:    userHandler,
-		JWTSecret:      jwtSecret,
-		PaymentHandler: paymentHandler,
-		NotesHandler:   notesHandler,
+		DB:               pgdb,
+		Logger:           logger,
+		S3:               s3Client,
+		FileHandler:      fileHandler,
+		UserHandler:      userHandler,
+		JWTSecret:        jwtSecret,
+		PaymentHandler:   paymentHandler,
+		NotesHandler:     notesHandler,
+		DeptAdminHandler: deptAdminHandler,
 	}
 
 	return app, nil

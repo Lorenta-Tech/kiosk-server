@@ -16,7 +16,7 @@ type GoogleAuthRequest struct {
 }
 
 type GoogleClaims struct {
-	Sub   string 
+	Sub   string
 	Email string
 	Name  string
 }

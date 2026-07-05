@@ -44,7 +44,7 @@ type FileRepo interface {
 
 	ExpireSessionAfterPrinting(ctx context.Context, sessionID string) error
 
-	//admin 
+	//admin
 	// NEED TO BE FIX
 	FetchPrintHistory(ctx context.Context, limit int, offset int) ([]models.PrintHistoryRow, error)
 }
@@ -471,7 +471,6 @@ func (r *PostgresFileRepo) GetActivePrintJobs(
 
 	return sessions, nil
 }
-
 
 func (r *PostgresFileRepo) FetchPrintHistory(
 	ctx context.Context,

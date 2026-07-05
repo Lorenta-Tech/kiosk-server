@@ -9,7 +9,7 @@ import (
 )
 
 // RecoveryMiddleware catches any panics and returns a 500 response instead of
-// crashing the server. 
+// crashing the server.
 func RecoveryMiddleware(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

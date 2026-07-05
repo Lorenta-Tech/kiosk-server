@@ -1,10 +1,9 @@
 package handler
 
+// type AdminHandler struct {
 
-type AdminHandler struct {
+// }
 
-}
-
-func NewAdminHandler() *AdminHandler {
-	return &AdminHandler{}
-}
+// func NewAdminHandler() *AdminHandler {
+// 	return &AdminHandler{}
+// }

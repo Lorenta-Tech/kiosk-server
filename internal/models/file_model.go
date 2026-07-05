@@ -153,12 +153,10 @@ type TokenJobResponse struct {
 	Job PrintJob `json:"job"`
 }
 
-
-
 // ================================
 // MODELS
 // ================================
-//NEED TO BE FIX
+// NEED TO BE FIX
 type PrintHistoryRow struct {
 	SessionID   string
 	Status      string

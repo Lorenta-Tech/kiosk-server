@@ -724,6 +724,7 @@ func stringPtrToIntPtr(s *string) *int {
 
 	return &v
 }
+
 //helpers
 
 func (fs *FileService) buildPrintJobs(ctx context.Context, sessions []models.UploadSession) ([]models.PrintJob, error) {

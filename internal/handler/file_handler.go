@@ -60,8 +60,8 @@ func (fh *FileHandler) HandleInitFileUpload(w http.ResponseWriter, r *http.Reque
 	// userID := "8473e7f9-2c72-4baf-b861-cd8238b15af6"
 	// userEmail := "hardcoded@email.com"
 
-	fh.logger.Info("USERID","userId:",userID)
-	fh.logger.Info("USEREMAIL","userEmail:",userEmail)
+	fh.logger.Info("USERID", "userId:", userID)
+	fh.logger.Info("USEREMAIL", "userEmail:", userEmail)
 
 	resp, err := fh.fileservice.InitUpload(ctx, userID, userEmail, req)
 	if err != nil {
@@ -146,7 +146,7 @@ func (fh *FileHandler) HandleActivePrintJobs(w http.ResponseWriter, r *http.Requ
 	defer cancel()
 
 	// TODO: replace with auth middleware value
-	 userID := r.Context().Value(middlewares.ContextUserID).(string)
+	userID := r.Context().Value(middlewares.ContextUserID).(string)
 	// userID := "8473e7f9-2c72-4baf-b861-cd8238b15af6"
 
 	resp, err := fh.fileservice.GetActivePrintJobs(ctx, userID)
@@ -301,7 +301,7 @@ func (fh *FileHandler) HandleGetJobBySessionID(w http.ResponseWriter, r *http.Re
 
 // need to FIX
 func (fh *FileHandler) HandleFetchPrintJobs(w http.ResponseWriter, r *http.Request) {
-	ctx,cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 
 	resp, err := fh.fileservice.FetchPrintHistory(ctx, 1000, 0)
