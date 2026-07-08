@@ -45,7 +45,8 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 		notesRoutes(app, r)
 
 		// IMPORTANT
-		adminRoutes(app, r)
+		deptadminRoutes(app, r)
+    adminRoutes(app,r)
 	})
 
 	return r
@@ -64,7 +65,7 @@ func fileRoutes(app *app.Application, r chi.Router) {
 	r.Post("/print/jobs/expire", app.FileHandler.HandleExpireSessionAfterPrinting)
 	//r.Get("/admin/getprintjobs",app.FileHandler.HandleFetchPrintJobs)
 	r.Route("/files", func(r chi.Router) {
-		r.Use(middlewares.AuthMiddleware(app.JWTSecret))
+		r.Use(middlewares.AuthMiddleware(app.JWTSecret,app.Logger))
 		r.Post("/upload/init", app.FileHandler.HandleInitFileUpload)
 		r.Post("/upload/confirm", app.FileHandler.HandleConfirmFileUpload)
 		r.Get("/jobs/recent", app.FileHandler.HandleGetRecentPrintJobs)
@@ -75,7 +76,7 @@ func fileRoutes(app *app.Application, r chi.Router) {
 
 func paymentRoutes(app *app.Application, r chi.Router) {
 	r.Route("/payments", func(r chi.Router) {
-		r.Use(middlewares.AuthMiddleware(app.JWTSecret))
+		r.Use(middlewares.AuthMiddleware(app.JWTSecret,app.Logger))
 		r.Post("/create", app.PaymentHandler.HandleCreateOrder)
 		r.Get("/status/{session_id}", app.PaymentHandler.HandleGetPaymentStatus)
 	})
@@ -147,7 +148,7 @@ func notesRoutes(app *app.Application, r chi.Router) {
 	})
 }
 
-func adminRoutes(app *app.Application, r chi.Router) {
+func deptadminRoutes(app *app.Application, r chi.Router) {
 
 	secrets := middlewares.Secrets{
 		DeptAdmin:  app.JWTSecret,
@@ -187,5 +188,13 @@ func adminRoutes(app *app.Application, r chi.Router) {
 			r.Get("/subjects/{subject_id}/modules", app.NotesHandler.HandleListModules)
 			r.Get("/modules/{module_id}/notes", app.NotesHandler.HandleListNotes)
 		})
+    
+func adminRoutes(app *app.Application, r chi.Router) {
+	r.Route("/admin", func(r chi.Router) {
+		r.Get("/print/history", app.AdminHandler.HandleFetchPrintHistory)
+		r.Get("/print/revenue", app.AdminHandler.HandleGetTotalRevenue)
+		r.Get("/print/totalsheetsprinted",app.AdminHandler.HandleGetTotalSheetsPrinted)
+		r.Get("/print/colorsheets",app.AdminHandler.HandleGetTotalColorSheetsPrinted)
+		r.Get("/print/blackandwhite",app.AdminHandler.HandleGetTotalBlackAndWhiteSheetsPrinted)
 	})
 }

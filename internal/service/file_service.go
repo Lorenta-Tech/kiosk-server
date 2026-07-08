@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"math/big"
-	"sort"
 	"strconv"
 	"time"
 
@@ -24,6 +23,7 @@ const defaultRecentJobsLimit = 10
 
 type FileService struct {
 	filerepo   repository.FileRepo
+	userrepo   repository.UserRepo
 	s3         *s3pkg.Client
 	db         *sql.DB
 	mailclient *mail.ResendClient
@@ -32,12 +32,13 @@ type FileService struct {
 
 func NewFileService(
 	filerepo repository.FileRepo,
+	userrepo repository.UserRepo,
 	s3 *s3pkg.Client,
 	db *sql.DB,
 	mailclient *mail.ResendClient,
 	logger *slog.Logger,
 ) *FileService {
-	return &FileService{filerepo: filerepo, s3: s3, db: db, mailclient: mailclient, logger: logger}
+	return &FileService{filerepo: filerepo, userrepo: userrepo, s3: s3, db: db, mailclient: mailclient, logger: logger}
 }
 
 func (fs *FileService) InitUpload(
@@ -319,6 +320,15 @@ func (fs *FileService) GetRecentPrintJobs(
 
 	fs.logger.Info("get recent print jobs started", "user_id", userID)
 
+	exist, err := fs.userrepo.CheckUserExists(ctx, userID)
+
+	if !exist {
+		return models.RecentPrintJobsResponse{}, apperror.NotFound(
+			"user_not_found in the database, please logout and login again",
+			"user not found",
+		)
+	}
+
 	sessions, err := fs.filerepo.GetRecentPrintJobs(ctx, userID, defaultRecentJobsLimit)
 	if err != nil {
 		return models.RecentPrintJobsResponse{}, err
@@ -348,6 +358,14 @@ func (fs *FileService) GetActivePrintJobs(
 ) (models.RecentPrintJobsResponse, error) {
 
 	fs.logger.Info("get recent print jobs started", "user_id", userID)
+
+	exist, err := fs.userrepo.CheckUserExists(ctx, userID)
+	if !exist {
+		return models.RecentPrintJobsResponse{}, apperror.NotFound(
+			"user_not_found in the database, please logout and login with old google account to get active orders",
+			"user not found",
+		)
+	}
 
 	sessions, err := fs.filerepo.GetActivePrintJobs(ctx, userID)
 	if err != nil {
@@ -491,11 +509,26 @@ func (fs *FileService) ExpireSessionAfterPrinting(
 	if err := fs.filerepo.ExpireSessionAfterPrinting(ctx, req.SessionID); err != nil {
 		return err
 	}
-
 	fs.logger.Info("session marked completed",
 		"session_id", req.SessionID,
 	)
 
+	key, err := fs.filerepo.GetFinalKeyBySessionID(ctx, req.SessionID)
+	if err != nil {
+		return err
+	}
+	
+
+	if err := fs.s3.DeleteFile(ctx, key); err != nil {
+		return apperror.Internal(
+			"failed to delete file from S3 after session completion",
+			err,
+		)
+	}
+	fs.logger.Info("file deleted from S3 after session completion",
+		"session_id", req.SessionID,
+		"final_key", key,
+	)
 	return nil
 }
 func (fs *FileService) ErrorRequestFromPrinter(
@@ -600,96 +633,6 @@ func (fs *FileService) GetJobBySessionID(
 			CreatedAt:   session.CreatedAt,
 			Files:       printJobFiles,
 		},
-	}, nil
-}
-
-// Admin service methods
-// NEED TO BE FIX
-func (fs *FileService) FetchPrintHistory(
-	ctx context.Context,
-	limit int,
-	offset int,
-) (models.RecentPrintJobsResponse, error) {
-
-	fs.logger.Info(
-		"fetch print history called",
-		"limit", limit,
-		"offset", offset,
-	)
-
-	rows, err := fs.filerepo.FetchPrintHistory(
-		ctx,
-		limit,
-		offset,
-	)
-	if err != nil {
-		return models.RecentPrintJobsResponse{}, err
-	}
-
-	if len(rows) == 0 {
-		return models.RecentPrintJobsResponse{
-			Jobs:  []models.PrintJob{},
-			Total: 0,
-		}, nil
-	}
-
-	jobsMap := make(map[string]*models.PrintJob)
-
-	for _, row := range rows {
-
-		job, exists := jobsMap[row.SessionID]
-
-		if !exists {
-
-			job = &models.PrintJob{
-				SessionID:   row.SessionID,
-				Status:      row.Status,
-				Token:       row.Token,
-				TotalAmount: &row.TotalAmount,
-				TotalSheets: &row.TotalSheets,
-				CreatedAt:   row.CreatedAt,
-				Files:       []models.PrintJobFile{},
-			}
-
-			jobsMap[row.SessionID] = job
-		}
-
-		// skip if no file
-		if row.FileID != nil {
-
-			job.Files = append(job.Files, models.PrintJobFile{
-				FileID:        derefString(row.FileID),
-				FileName:      derefString(row.FileName),
-				PrintingMode:  row.PrintingMode,
-				PrintingSide:  row.PrintingSide,
-				PageRange:     intSliceToStringSlice(row.PageRange),
-				PageLayout:    stringPtrToIntPtr(row.PageLayout),
-				Copies:        row.Copies,
-				NumberOfPages: row.NumberOfPages,
-				Price:         row.Price,
-				FileStatus:    derefString(row.FileStatus),
-			})
-		}
-	}
-
-	jobs := make([]models.PrintJob, 0, len(jobsMap))
-
-	for _, job := range jobsMap {
-		jobs = append(jobs, *job)
-	}
-
-	sort.Slice(jobs, func(i, j int) bool {
-		return jobs[i].CreatedAt.After(jobs[j].CreatedAt)
-	})
-
-	fs.logger.Info(
-		"fetch print history completed",
-		"job_count", len(jobs),
-	)
-
-	return models.RecentPrintJobsResponse{
-		Jobs:  jobs,
-		Total: len(jobs),
 	}, nil
 }
 

@@ -27,6 +27,7 @@ type Application struct {
 	FileHandler      *handler.FileHandler
 	UserHandler      *handler.UserHandler
 	PaymentHandler   *handler.PaymentHandler
+  AdminHandler     *handler.AdminHandler
 	NotesHandler     *handler.NotesHandler // new line added for notes
 	DeptAdminHandler *handler.DeptAdminHandler
 	JWTSecret        string
@@ -93,15 +94,15 @@ func NewApplication() (*Application, error) {
 	razorpaySecret := env.GetString("RZP_SECRET", "")
 	webhookSecret := env.GetString("RZP_WEBHOOK_SECRET", "")
 
-	// File feature
-	filerepo := repository.NewFileRepository(pgdb)
-	fileservice := service.NewFileService(filerepo, s3Client, pgdb, mailClient, logger)
-	fileHandler := handler.NewFileHandler(fileservice, logger)
-
 	// Users feature
 	userrepo := repository.NewUserRepository(pgdb)
 	userservice := service.NewUserService(userrepo, logger, jwtSecret, googleClientID)
 	userHandler := handler.NewUserHandler(userservice, logger)
+
+	// File feature
+	filerepo := repository.NewFileRepository(pgdb)
+	fileservice := service.NewFileService(filerepo, userrepo, s3Client, pgdb, mailClient, logger)
+	fileHandler := handler.NewFileHandler(fileservice, logger)
 
 	// Payment feature
 	paymentRepo := repository.NewPaymentRepository(pgdb)
@@ -138,6 +139,22 @@ func NewApplication() (*Application, error) {
 		PaymentHandler:   paymentHandler,
 		NotesHandler:     notesHandler,
 		DeptAdminHandler: deptAdminHandler,
+	//admin feature 
+	adminrepo := repository.NewAdminRepository(pgdb)
+	adminservice := service.NewAdminRepo(filerepo, adminrepo, logger)
+	adminHandler := handler.NewAdminHandler(adminservice, logger)
+
+	app := &Application{
+		DB:             pgdb,
+		Logger:         logger,
+		S3:             s3Client,
+		FileHandler:    fileHandler,
+		UserHandler:    userHandler,
+		JWTSecret:      jwtSecret,
+		PaymentHandler: paymentHandler,
+		AdminHandler:   adminHandler,
+    NotesHandler:   notesHandlre,
+    DeptAdminHandler: deptAdminHandler,
 	}
 
 	return app, nil

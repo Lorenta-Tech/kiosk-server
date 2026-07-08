@@ -22,7 +22,9 @@ import (
 func HandleError(w http.ResponseWriter, logger *slog.Logger, err error) {
 
 	var appErr *apperror.AppError
-
+	if logger == nil {
+		logger = slog.Default()
+	}
 	if apperror.As(err, &appErr) {
 
 		// SAFE LOGGER USAGE

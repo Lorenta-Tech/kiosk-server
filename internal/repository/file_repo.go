@@ -43,10 +43,7 @@ type FileRepo interface {
 	UpdateSessionPaid(ctx context.Context, sessionID string) error
 
 	ExpireSessionAfterPrinting(ctx context.Context, sessionID string) error
-
-	//admin
-	// NEED TO BE FIX
-	FetchPrintHistory(ctx context.Context, limit int, offset int) ([]models.PrintHistoryRow, error)
+	GetFinalKeyBySessionID(ctx context.Context, sessionID string) (string, error)
 }
 
 // Implementation
@@ -472,95 +469,26 @@ func (r *PostgresFileRepo) GetActivePrintJobs(
 	return sessions, nil
 }
 
-func (r *PostgresFileRepo) FetchPrintHistory(
-	ctx context.Context,
-	limit int,
-	offset int,
-) ([]models.PrintHistoryRow, error) {
-
+func (r *PostgresFileRepo) GetFinalKeyBySessionID(ctx context.Context, sessionID string) (string, error) {
 	const query = `
-		SELECT
-			us.id AS session_id,
-			us.status,
-			us.token,
-			us.total_amount,
-			us.total_sheets,
-			us.created_at,
-
-			uf.id AS file_id,
-			uf.file_name,
-			uf.printing_mode,
-			uf.printing_side,
-			uf.page_range,
-			uf.page_layout,
-			uf.copies,
-			uf.number_of_pages,
-			uf.price,
-			uf.file_status
-
-		FROM upload_sessions us
-
-		LEFT JOIN upload_files uf
-			ON uf.session_id = us.id
-
-		WHERE us.status = 'completed'
-
-		ORDER BY us.created_at DESC
-
-		LIMIT $1 OFFSET $2
+		SELECT final_key
+		FROM upload_files
+		WHERE session_id = $1
+		  AND file_status = 'completed'
 	`
-
-	rows, err := r.db.QueryContext(ctx, query, limit, offset)
+	var finalKey string
+	err := r.db.QueryRowContext(ctx, query, sessionID).Scan(&finalKey)
+	if err == sql.ErrNoRows {
+		return "", apperror.NotFound(
+			"no_completed_file",
+			fmt.Sprintf("no completed file found for session %s", sessionID),
+		)
+	}
 	if err != nil {
-		return nil, apperror.Internal(
-			"failed to fetch print history",
-			fmt.Errorf("repository.FetchPrintHistory: %w", err),
+		return "", apperror.Internal(
+			"failed to fetch final key",
+			fmt.Errorf("repository.GetFinalKeyBySessionID: %w", err),
 		)
 	}
-	defer rows.Close()
-
-	history := make([]models.PrintHistoryRow, 0)
-
-	for rows.Next() {
-
-		var row models.PrintHistoryRow
-
-		err := rows.Scan(
-			&row.SessionID,
-			&row.Status,
-			&row.Token,
-			&row.TotalAmount,
-			&row.TotalSheets,
-			&row.CreatedAt,
-
-			&row.FileID,
-			&row.FileName,
-			&row.PrintingMode,
-			&row.PrintingSide,
-			pq.Array(&row.PageRange),
-			&row.PageLayout,
-			&row.Copies,
-			&row.NumberOfPages,
-			&row.Price,
-			&row.FileStatus,
-		)
-
-		if err != nil {
-			return nil, apperror.Internal(
-				"failed to scan print history row",
-				fmt.Errorf("repository.FetchPrintHistory scan: %w", err),
-			)
-		}
-
-		history = append(history, row)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, apperror.Internal(
-			"failed reading print history rows",
-			fmt.Errorf("repository.FetchPrintHistory rows.Err: %w", err),
-		)
-	}
-
-	return history, nil
+	return finalKey, nil
 }

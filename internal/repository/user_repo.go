@@ -12,6 +12,7 @@ import (
 type UserRepo interface {
 	GetByGoogleID(ctx context.Context, googleID string) (models.User, error)
 	Create(ctx context.Context, user models.User) (models.User, error)
+	CheckUserExists(ctx context.Context, userID string) (bool,error)
 }
 
 type PostgresUserRepo struct {
@@ -79,4 +80,19 @@ func (r *PostgresUserRepo) Create(ctx context.Context, user models.User) (models
 		)
 	}
 	return u, nil
+}
+
+func (r *PostgresUserRepo) CheckUserExists(ctx context.Context, userID string) (bool,error) {
+	const query = `
+		SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)
+	`
+	var exists bool
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(&exists)
+	if err != nil {
+		return false, apperror.Internal(
+			"failed to check user existence",
+			fmt.Errorf("repository.CheckUserExists: %w", err),
+		)
+	}
+	return exists, nil
 }
