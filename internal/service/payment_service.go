@@ -136,7 +136,7 @@ func (ps *PaymentService) CreateOrder(
 func (ps *PaymentService) GetPaymentStatus(
 	ctx context.Context,
 	sessionId string,
-) (models.TokenJobResponse, error){
+) (models.TokenJobResponse, error) {
 	ps.logger.Info("get job by session ID started", "session_id", sessionId)
 
 	session, err := ps.filerepo.GetSessionByID(ctx, sessionId)
@@ -144,7 +144,7 @@ func (ps *PaymentService) GetPaymentStatus(
 		return models.TokenJobResponse{}, err
 	}
 
-	ps.logger.Info("Token Debugging","Token:",session.Token)
+	ps.logger.Info("Token Debugging", "Token:", session.Token)
 
 	files, err := ps.filerepo.GetFilesBySessionID(ctx, session.ID)
 	if err != nil {
@@ -185,7 +185,6 @@ func (ps *PaymentService) GetPaymentStatus(
 		},
 	}, nil
 }
-
 
 // HandleWebhook processes inbound Razorpay webhook events.
 func (ps *PaymentService) HandleWebhook(r *http.Request) error {
@@ -357,7 +356,8 @@ func (ps *PaymentService) handlePaymentFailed(ctx context.Context, payload model
 	return nil
 }
 
-//  helpers 
+//	helpers
+//
 // verifyWebhookSignature computes HMAC-SHA256(webhookSecret, rawBody)
 func (ps *PaymentService) verifyWebhookSignature(body []byte, signature string) bool {
 	mac := hmac.New(sha256.New, []byte(ps.webhookSecret))

@@ -10,27 +10,27 @@ type CreatePaymentRequest struct {
 }
 
 type Payment struct {
-	ID               string
-	SessionID        string
-	RazorpayOrderID  string
-	RazorpayPaymentID *string 
-	Status           string   // created | success | failed
+	ID                string
+	SessionID         string
+	RazorpayOrderID   string
+	RazorpayPaymentID *string
+	Status            string // created | success | failed
 }
 
 type CreatePaymentResponse struct {
-	PaymentID       string `json:"payment_id"`        
-	RazorpayOrderID string `json:"razorpay_order_id"` 
-	AmountPaise     int64  `json:"amount_paise"`   
-	Currency        string `json:"currency"`      
+	PaymentID       string `json:"payment_id"`
+	RazorpayOrderID string `json:"razorpay_order_id"`
+	AmountPaise     int64  `json:"amount_paise"`
+	Currency        string `json:"currency"`
 	SessionID       string `json:"session_id"`
 }
 
 // RazorpayWebhookPayload is the top-level body Razorpay POSTs to your server.
 type RazorpayWebhookPayload struct {
-	Entity    string                 `json:"entity"`
-	AccountID string                 `json:"account_id"`
-	Event     string                 `json:"event"`
-	Payload   RazorpayEventPayload   `json:"payload"`
+	Entity    string               `json:"entity"`
+	AccountID string               `json:"account_id"`
+	Event     string               `json:"event"`
+	Payload   RazorpayEventPayload `json:"payload"`
 }
 
 type RazorpayEventPayload struct {
@@ -47,13 +47,13 @@ type RazorpayOrderWrapper struct {
 }
 
 type RazorpayPaymentEntity struct {
-	ID      string `json:"id"`       
+	ID      string `json:"id"`
 	OrderID string `json:"order_id"`
-	Amount  int64  `json:"amount"`   //in paise
-	Status  string `json:"status"`   
+	Amount  int64  `json:"amount"` //in paise
+	Status  string `json:"status"`
 }
 type RazorpayOrderEntity struct {
-	ID     string `json:"id"`    
+	ID     string `json:"id"`
 	Amount int64  `json:"amount"` // in paise
-	Status string `json:"status"` 
+	Status string `json:"status"`
 }

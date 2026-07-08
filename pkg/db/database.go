@@ -19,7 +19,7 @@ func Connect() (*sql.DB, error) {
 
 	db, err := sql.Open(
 		"pgx",
-		env.GetString("DATABASE_URL",""),
+		env.GetString("DATABASE_URL", ""),
 	)
 
 	if err != nil {
@@ -31,4 +31,3 @@ func Connect() (*sql.DB, error) {
 	}
 	return db, nil
 }
- 

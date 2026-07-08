@@ -8,20 +8,21 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-const tokenExpiry = 30 * 24 * time.Hour // 30 days
+type DeptAdminClaims struct {
+	AdminID  string `json:"admin_id"`
+	Email    string `json:"email"`
+	BranchID string `json:"branch_id"`
+	Role     string `json:"role"`
 
-type Claims struct {
-	UserID string `json:"user_id"`
-	Email  string `json:"email"`
-	Name   string `json:"name"`
 	jwt.RegisteredClaims
 }
 
-func Generate(secret, userID, email, name string) (string, error) {
-	claims := Claims{
-		UserID: userID,
-		Email:  email,
-		Name:   name,
+func GenerateDeptAdminToken(secret, adminID, email, branchID string) (string, error) {
+	claims := DeptAdminClaims{
+		AdminID:  adminID,
+		Email:    email,
+		BranchID: branchID,
+		Role:     string(RoleDeptAdmin),
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenExpiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -31,14 +32,13 @@ func Generate(secret, userID, email, name string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, err := token.SignedString([]byte(secret))
 	if err != nil {
-		return "", fmt.Errorf("jwt.Generate: %w", err)
+		return "", fmt.Errorf("jwt.GenerateDeptAdminToken: %w", err)
 	}
 	return signed, nil
 }
 
-func Parse(secret, tokenStr string) (*Claims, error) {
-	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (any, error) {
-		// Enforce that the signing method is HMAC — reject anything else
+func ParseDeptAdminToken(secret, tokenStr string) (*DeptAdminClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenStr, &DeptAdminClaims{}, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
@@ -48,10 +48,9 @@ func Parse(secret, tokenStr string) (*Claims, error) {
 		return nil, apperror.Unauthorized("invalid or expired token")
 	}
 
-	claims, ok := token.Claims.(*Claims)
+	claims, ok := token.Claims.(*DeptAdminClaims)
 	if !ok || !token.Valid {
 		return nil, apperror.Unauthorized("invalid token claims")
 	}
-
 	return claims, nil
 }

@@ -13,10 +13,10 @@ import (
 )
 
 type UserService struct {
-	userrepo        repository.UserRepo
-	logger          *slog.Logger
-	jwtSecret       string
-	googleClientID  string
+	userrepo       repository.UserRepo
+	logger         *slog.Logger
+	jwtSecret      string
+	googleClientID string
 }
 
 func NewUserService(
@@ -113,7 +113,7 @@ func (s *UserService) GoogleAuth(
 	}, nil
 }
 
-//helpers
+// helpers
 func extractGoogleClaims(payload *idtoken.Payload) (models.GoogleClaims, error) {
 	sub := payload.Subject
 	if sub == "" {
@@ -127,7 +127,7 @@ func extractGoogleClaims(payload *idtoken.Payload) (models.GoogleClaims, error) 
 
 	name, _ := payload.Claims["name"].(string)
 	if name == "" {
-		name = email 
+		name = email
 	}
 
 	return models.GoogleClaims{

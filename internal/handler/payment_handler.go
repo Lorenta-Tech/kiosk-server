@@ -11,7 +11,7 @@ import (
 	"github.com/Lorenta-Tech/kiosk-server/internal/validator"
 	"github.com/Lorenta-Tech/kiosk-server/pkg/apperror"
 	"github.com/Lorenta-Tech/kiosk-server/pkg/utils"
-) 
+)
 
 type PaymentHandler struct {
 	paymentservice *service.PaymentService
@@ -57,7 +57,7 @@ func (ph *PaymentHandler) HandleCreateOrder(w http.ResponseWriter, r *http.Reque
 		utils.HandleError(w, ph.logger, err)
 		return
 	}
-	ph.logger.Info("Amount:","Amount_paise",resp.AmountPaise)
+	ph.logger.Info("Amount:", "Amount_paise", resp.AmountPaise)
 
 	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"data": resp})
 }
@@ -91,9 +91,6 @@ func (ph *PaymentHandler) HandleWebhook(w http.ResponseWriter, r *http.Request) 
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"status": "ok"})
 }
-
-
-
 
 func (fh *PaymentHandler) HandleGetPaymentStatus(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
