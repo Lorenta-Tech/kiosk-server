@@ -9,7 +9,7 @@ import (
 	"github.com/Lorenta-Tech/kiosk-server/pkg/apperror"
 )
 
-type AdminRepo interface {
+type DeptAdminRepo interface {
 	CreateDeptAdmin(
 		ctx context.Context,
 		admin models.DeptAdmin,
@@ -30,11 +30,11 @@ type AdminRepo interface {
 	) ([]models.DeptAdmin, error)
 }
 
-type PostgresAdminRepo struct {
+type PostgresDeptAdminRepo struct {
 	db DBTX
 }
 
-func NewAdminRepository(db DBTX) *PostgresAdminRepo {
+func NewDeptAdminRepository(db DBTX) *PostgresAdminRepo {
 	return &PostgresAdminRepo{
 		db: db,
 	}

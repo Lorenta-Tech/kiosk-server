@@ -13,7 +13,7 @@ import (
 )
 
 type DeptAdminService struct {
-	adminRepo          repository.AdminRepo
+	adminRepo          repository.DeptAdminRepo
 	logger             *slog.Logger
 	jwtSecret          string
 	superAdminEmail    string
@@ -21,14 +21,14 @@ type DeptAdminService struct {
 }
 
 func NewDeptAdminService(
-	adminRepo repository.AdminRepo,
+	deptadminRepo repository.DeptAdminRepo,
 	logger *slog.Logger,
 	jwtSecret string,
 	superAdminEmail string,
 	superAdminPassword string,
 ) *DeptAdminService {
 	return &DeptAdminService{
-		adminRepo:          adminRepo,
+		adminRepo:          deptadminRepo,
 		logger:             logger,
 		jwtSecret:          jwtSecret,
 		superAdminEmail:    superAdminEmail,

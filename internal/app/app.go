@@ -27,8 +27,8 @@ type Application struct {
 	FileHandler      *handler.FileHandler
 	UserHandler      *handler.UserHandler
 	PaymentHandler   *handler.PaymentHandler
-  AdminHandler     *handler.AdminHandler
-	NotesHandler     *handler.NotesHandler // new line added for notes
+    AdminHandler     *handler.AdminHandler
+	NotesHandler     *handler.NotesHandler 
 	DeptAdminHandler *handler.DeptAdminHandler
 	JWTSecret        string
 }
@@ -114,13 +114,13 @@ func NewApplication() (*Application, error) {
 	notesservice := service.NewNotesService(notesrepo, filerepo, pgdb, s3Client, logger)
 	notesHandler := handler.NewNotesHandler(notesservice, logger)
 
-	adminRepo := repository.NewAdminRepository(pgdb)
-
+	//dept admin feature
+	deptadminRepo := repository.NewAdminRepository(pgdb)
 	deptAdminService := service.NewDeptAdminService(
-		adminRepo,
+		deptadminRepo,
 		logger,
 		jwtSecret,
-		env.GetString("SUPER_ADMIN_EMAIL", ""),
+		env.GetString("SUPER_ADMIN_EMAIL", ""),  //this two needs to add to required env variables
 		env.GetString("SUPER_ADMIN_PASSWORD", ""),
 	)
 
@@ -129,17 +129,6 @@ func NewApplication() (*Application, error) {
 		logger,
 	)
 
-	app := &Application{
-		DB:               pgdb,
-		Logger:           logger,
-		S3:               s3Client,
-		FileHandler:      fileHandler,
-		UserHandler:      userHandler,
-		JWTSecret:        jwtSecret,
-		PaymentHandler:   paymentHandler,
-		NotesHandler:     notesHandler,
-		DeptAdminHandler: deptAdminHandler,
-	//admin feature 
 	adminrepo := repository.NewAdminRepository(pgdb)
 	adminservice := service.NewAdminRepo(filerepo, adminrepo, logger)
 	adminHandler := handler.NewAdminHandler(adminservice, logger)
@@ -153,8 +142,8 @@ func NewApplication() (*Application, error) {
 		JWTSecret:      jwtSecret,
 		PaymentHandler: paymentHandler,
 		AdminHandler:   adminHandler,
-    NotesHandler:   notesHandlre,
-    DeptAdminHandler: deptAdminHandler,
+        NotesHandler:   notesHandler,
+        DeptAdminHandler: deptAdminHandler,
 	}
 
 	return app, nil

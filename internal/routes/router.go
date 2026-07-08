@@ -112,7 +112,7 @@ func notesRoutes(app *app.Application, r chi.Router) {
 
 	r.Route("/notes", func(r chi.Router) {
 
-		r.Use(middlewares.AuthMiddleware(app.JWTSecret))
+		r.Use(middlewares.AuthMiddleware(app.JWTSecret, app.Logger))
 
 		r.Get("/branches", app.NotesHandler.HandleListBranches)
 
@@ -155,7 +155,7 @@ func deptadminRoutes(app *app.Application, r chi.Router) {
 		SuperAdmin: app.JWTSecret,
 	}
 
-	r.Route("/admin", func(r chi.Router) {
+	r.Route("/deptadmin", func(r chi.Router) {  //getting changed need to inform frontend team
 
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/super/login", app.DeptAdminHandler.HandleSuperAdminLogin)
@@ -188,7 +188,10 @@ func deptadminRoutes(app *app.Application, r chi.Router) {
 			r.Get("/subjects/{subject_id}/modules", app.NotesHandler.HandleListModules)
 			r.Get("/modules/{module_id}/notes", app.NotesHandler.HandleListNotes)
 		})
+	})
+}
     
+	
 func adminRoutes(app *app.Application, r chi.Router) {
 	r.Route("/admin", func(r chi.Router) {
 		r.Get("/print/history", app.AdminHandler.HandleFetchPrintHistory)
