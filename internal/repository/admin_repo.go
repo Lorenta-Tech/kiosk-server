@@ -23,6 +23,10 @@ type AdminRepo interface {
 	AdminGetTotalSheetsPrinted(ctx context.Context) (int, error)
 	AdminGetTotalColorSheetsPrinted(ctx context.Context) (int, error)
 	AdminGetTotalBlackAndWhiteSheetsPrinted(ctx context.Context) (int, error)
+	AdminGetRevenueLast24Hours(ctx context.Context) (float64, error)
+	AdminGetSheetsPrintedLast24Hours(ctx context.Context) (int, error)
+	AdminGetColorSheetsPrintedLast24Hours(ctx context.Context) (int, error)
+	AdminGetBlackAndWhiteSheetsPrintedLast24Hours(ctx context.Context) (int, error)
 }
 
 func (r *PostgresAdminRepo) AdminFetchPrintHistory(ctx context.Context) ([]models.PrintJob, error) {
@@ -206,5 +210,87 @@ func (r *PostgresAdminRepo) AdminGetTotalBlackAndWhiteSheetsPrinted(ctx context.
 			fmt.Errorf("repository.AdminGetTotalBlackAndWhiteSheetsPrinted: %w", err),
 		)
 	}
+	return total, nil
+}
+
+func (r *PostgresAdminRepo) AdminGetColorSheetsPrintedLast24Hours(ctx context.Context) (int, error) {
+	const query = `
+		SELECT COALESCE(SUM(uf.number_of_pages), 0)
+		FROM upload_files uf
+		JOIN upload_sessions us ON us.id = uf.session_id
+		WHERE us.status = 'completed'
+		  AND uf.printing_mode = 'color'
+		  AND us.created_at >= NOW() - INTERVAL '24 hours'
+	`
+
+	var total int
+	if err := r.db.QueryRowContext(ctx, query).Scan(&total); err != nil {
+		return 0, apperror.Internal(
+			"failed to calculate color sheets printed for last 24 hours",
+			fmt.Errorf("repository.AdminGetColorSheetsPrintedLast24Hours: %w", err),
+		)
+	}
+
+	return total, nil
+}
+
+
+func (r *PostgresAdminRepo) AdminGetBlackAndWhiteSheetsPrintedLast24Hours(ctx context.Context) (int, error) {
+	const query = `
+		SELECT COALESCE(SUM(uf.number_of_pages), 0)
+		FROM upload_files uf
+		JOIN upload_sessions us ON us.id = uf.session_id
+		WHERE us.status = 'completed'
+		  AND uf.printing_mode = 'monochromatic'
+		  AND us.created_at >= NOW() - INTERVAL '24 hours'
+	`
+
+	var total int
+	if err := r.db.QueryRowContext(ctx, query).Scan(&total); err != nil {
+		return 0, apperror.Internal(
+			"failed to calculate black and white sheets printed for last 24 hours",
+			fmt.Errorf("repository.AdminGetBlackAndWhiteSheetsPrintedLast24Hours: %w", err),
+		)
+	}
+
+	return total, nil
+}
+
+func (r *PostgresAdminRepo) AdminGetRevenueLast24Hours(ctx context.Context) (float64, error) {
+	const query = `
+		SELECT COALESCE(SUM(total_amount), 0)
+		FROM upload_sessions
+		WHERE status = 'completed'
+		  AND created_at >= NOW() - INTERVAL '24 hours'
+	`
+
+	var total float64
+	if err := r.db.QueryRowContext(ctx, query).Scan(&total); err != nil {
+		return 0, apperror.Internal(
+			"failed to calculate revenue for last 24 hours",
+			fmt.Errorf("repository.AdminGetRevenueLast24Hours: %w", err),
+		)
+	}
+
+	return total, nil
+}
+
+func (r *PostgresAdminRepo) AdminGetSheetsPrintedLast24Hours(ctx context.Context) (int, error) {
+	const query = `
+		SELECT COALESCE(SUM(uf.number_of_pages), 0)
+		FROM upload_files uf
+		JOIN upload_sessions us ON us.id = uf.session_id
+		WHERE us.status = 'completed'
+		  AND us.created_at >= NOW() - INTERVAL '24 hours'
+	`
+
+	var total int
+	if err := r.db.QueryRowContext(ctx, query).Scan(&total); err != nil {
+		return 0, apperror.Internal(
+			"failed to calculate sheets printed for last 24 hours",
+			fmt.Errorf("repository.AdminGetSheetsPrintedLast24Hours: %w", err),
+		)
+	}
+
 	return total, nil
 }

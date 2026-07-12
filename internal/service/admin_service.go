@@ -49,3 +49,23 @@ func (s *AdminRepo) AdminGetTotalBlackAndWhiteSheetsPrinted(ctx context.Context)
 	s.logger.Info("AdminGetTotalBlackAndWhiteSheetsPrinted called")
 	return s.adminrepo.AdminGetTotalBlackAndWhiteSheetsPrinted(ctx)
 }
+
+func (s *AdminRepo) AdminGetRevenueLast24Hours(ctx context.Context) (float64, error) {
+	s.logger.Info("AdminGetRevenueLast24Hours called")
+	return s.adminrepo.AdminGetRevenueLast24Hours(ctx)
+}
+
+func (s *AdminRepo) AdminGetSheetsPrintedLast24Hours(ctx context.Context) (int, error) {
+	s.logger.Info("AdminGetSheetsPrintedLast24Hours called")
+	return s.adminrepo.AdminGetSheetsPrintedLast24Hours(ctx)
+}
+
+func (s *AdminRepo) AdminGetColorSheetsPrintedLast24Hours(ctx context.Context) (int, error) {
+	s.logger.Info("AdminGetColorSheetsPrintedLast24Hours called")
+	return s.adminrepo.AdminGetColorSheetsPrintedLast24Hours(ctx)
+}
+
+func (s *AdminRepo) AdminGetBlackAndWhiteSheetsPrintedLast24Hours(ctx context.Context) (int, error) {
+	s.logger.Info("AdminGetBlackAndWhiteSheetsPrintedLast24Hours called")
+	return s.adminrepo.AdminGetBlackAndWhiteSheetsPrintedLast24Hours(ctx)
+}

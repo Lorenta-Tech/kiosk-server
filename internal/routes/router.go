@@ -46,7 +46,7 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 
 		// IMPORTANT
 		deptadminRoutes(app, r)
-    adminRoutes(app,r)
+        adminRoutes(app,r)
 	})
 
 	return r
@@ -199,5 +199,9 @@ func adminRoutes(app *app.Application, r chi.Router) {
 		r.Get("/print/totalsheetsprinted",app.AdminHandler.HandleGetTotalSheetsPrinted)
 		r.Get("/print/colorsheets",app.AdminHandler.HandleGetTotalColorSheetsPrinted)
 		r.Get("/print/blackandwhite",app.AdminHandler.HandleGetTotalBlackAndWhiteSheetsPrinted)
+		r.Get("/print/revenue-24h",app.AdminHandler.HandleGetRevenueLast24Hours)
+		r.Get("/print/sheets-24h",app.AdminHandler.HandleGetSheetsPrintedLast24Hours)
+		r.Get("/print/color-sheets-24h",app.AdminHandler.HandleGetColorSheetsPrintedLast24Hours)
+		r.Get("/print/black-and-white-sheets-24h",app.AdminHandler.HandleGetBlackAndWhiteSheetsPrintedLast24Hours)
 	})
 }

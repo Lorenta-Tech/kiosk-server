@@ -98,3 +98,64 @@ func (h *AdminHandler) HandleGetTotalBlackAndWhiteSheetsPrinted(w http.ResponseW
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"total_black_and_white_sheets_printed": totalBWSheets})
 }
+
+func (h *AdminHandler) HandleGetRevenueLast24Hours(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	h.logger.Info("HandleGetRevenueLast24Hours called")
+
+	revenue, err := h.AdminService.AdminGetRevenueLast24Hours(ctx)
+
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"revenue_last_24_hours": revenue})
+}
+
+func (h *AdminHandler) HandleGetSheetsPrintedLast24Hours(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	h.logger.Info("HandleGetSheetsPrintedLast24Hours called")
+
+	totalSheets, err := h.AdminService.AdminGetSheetsPrintedLast24Hours(ctx)
+
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"sheets_printed_last_24_hours": totalSheets})
+}
+
+func (h *AdminHandler) HandleGetColorSheetsPrintedLast24Hours(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	h.logger.Info("HandleGetColorSheetsPrintedLast24Hours called")
+
+	totalColorSheets, err := h.AdminService.AdminGetColorSheetsPrintedLast24Hours(ctx)
+
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"color_sheets_printed_last_24_hours": totalColorSheets})
+}
+
+func (h *AdminHandler) HandleGetBlackAndWhiteSheetsPrintedLast24Hours(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	h.logger.Info("HandleGetBlackAndWhiteSheetsPrintedLast24Hours called")
+
+	totalBWSheets, err := h.AdminService.AdminGetBlackAndWhiteSheetsPrintedLast24Hours(ctx)
+
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"black_and_white_sheets_printed_last_24_hours": totalBWSheets})
+}	
+
