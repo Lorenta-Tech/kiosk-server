@@ -27,8 +27,8 @@ type Application struct {
 	FileHandler      *handler.FileHandler
 	UserHandler      *handler.UserHandler
 	PaymentHandler   *handler.PaymentHandler
-    AdminHandler     *handler.AdminHandler
-	NotesHandler     *handler.NotesHandler 
+	AdminHandler     *handler.AdminHandler
+	NotesHandler     *handler.NotesHandler
 	DeptAdminHandler *handler.DeptAdminHandler
 	JWTSecret        string
 }
@@ -94,56 +94,47 @@ func NewApplication() (*Application, error) {
 	razorpaySecret := env.GetString("RZP_SECRET", "")
 	webhookSecret := env.GetString("RZP_WEBHOOK_SECRET", "")
 
-	// Users feature
+	//repositories
 	userrepo := repository.NewUserRepository(pgdb)
-	userservice := service.NewUserService(userrepo, logger, jwtSecret, googleClientID)
-	userHandler := handler.NewUserHandler(userservice, logger)
-
-	// File feature
 	filerepo := repository.NewFileRepository(pgdb)
-	fileservice := service.NewFileService(filerepo, userrepo, s3Client, pgdb, mailClient, logger)
-	fileHandler := handler.NewFileHandler(fileservice, logger)
-
-	// Payment feature
 	paymentRepo := repository.NewPaymentRepository(pgdb)
-	paymentService := service.NewPaymentService(paymentRepo, filerepo, pgdb, s3Client, logger, razorpayKey, razorpaySecret, webhookSecret)
-	paymentHandler := handler.NewPaymentHandler(paymentService, logger)
-
-	//Notes feature
 	notesrepo := repository.NewNotesRepository(pgdb)
-	notesservice := service.NewNotesService(notesrepo, filerepo, pgdb, s3Client, logger)
-	notesHandler := handler.NewNotesHandler(notesservice, logger)
-
-	//dept admin feature
 	deptadminRepo := repository.NewAdminRepository(pgdb)
+	adminrepo := repository.NewAdminRepository(pgdb)
+
+	//services
+	userservice := service.NewUserService(userrepo, logger, jwtSecret, googleClientID)
+	fileservice := service.NewFileService(filerepo, notesrepo, userrepo, s3Client, pgdb, mailClient, logger)
+	paymentService := service.NewPaymentService(paymentRepo, filerepo, pgdb, s3Client, logger, razorpayKey, razorpaySecret, webhookSecret)
+	notesservice := service.NewNotesService(notesrepo, filerepo, pgdb, s3Client, logger)
 	deptAdminService := service.NewDeptAdminService(
 		deptadminRepo,
 		logger,
 		jwtSecret,
-		env.GetString("SUPER_ADMIN_EMAIL", ""),  //this two needs to add to required env variables
+		env.GetString("SUPER_ADMIN_EMAIL", ""), //this two needs to add to required env variables
 		env.GetString("SUPER_ADMIN_PASSWORD", ""),
 	)
-
-	deptAdminHandler := handler.NewDeptAdminHandler(
-		deptAdminService,
-		logger,
-	)
-
-	adminrepo := repository.NewAdminRepository(pgdb)
 	adminservice := service.NewAdminRepo(filerepo, adminrepo, logger)
+
+	//Handlers
+	userHandler := handler.NewUserHandler(userservice, logger)
+	fileHandler := handler.NewFileHandler(fileservice, logger)
+	paymentHandler := handler.NewPaymentHandler(paymentService, logger)
+	notesHandler := handler.NewNotesHandler(notesservice, logger)
+	deptAdminHandler := handler.NewDeptAdminHandler(deptAdminService, logger)
 	adminHandler := handler.NewAdminHandler(adminservice, logger)
 
 	app := &Application{
-		DB:             pgdb,
-		Logger:         logger,
-		S3:             s3Client,
-		FileHandler:    fileHandler,
-		UserHandler:    userHandler,
-		JWTSecret:      jwtSecret,
-		PaymentHandler: paymentHandler,
-		AdminHandler:   adminHandler,
-        NotesHandler:   notesHandler,
-        DeptAdminHandler: deptAdminHandler,
+		DB:               pgdb,
+		Logger:           logger,
+		S3:               s3Client,
+		FileHandler:      fileHandler,
+		UserHandler:      userHandler,
+		JWTSecret:        jwtSecret,
+		PaymentHandler:   paymentHandler,
+		AdminHandler:     adminHandler,
+		NotesHandler:     notesHandler,
+		DeptAdminHandler: deptAdminHandler,
 	}
 
 	return app, nil

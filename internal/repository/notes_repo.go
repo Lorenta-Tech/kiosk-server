@@ -40,6 +40,7 @@ type NotesRepo interface {
 	UpdateNoteStatus(ctx context.Context, noteID string, status string) error
 	UpdateNote(ctx context.Context, noteID string, title string, description string) error
 	DeleteNote(ctx context.Context, noteID string) error
+	CheckNotesExist(ctx context.Context, noteID string) (bool, error)
 
 	// Dept Admin
 	GetDeptAdminByID(ctx context.Context, adminID string) (models.DeptAdmin, error)
@@ -636,6 +637,27 @@ func (r *PostgresNotesRepo) DeleteNote(ctx context.Context, noteID string) error
 	}
 
 	return nil
+}
+
+func (r *PostgresNotesRepo) CheckNotesExist(ctx context.Context, noteID string) (bool, error) {
+	const query = `
+		SELECT EXISTS (
+			SELECT 1
+			FROM notes
+			WHERE id = $1 AND status != 'deleted'
+		)
+	`
+
+	var exists bool
+	err := r.db.QueryRowContext(ctx, query, noteID).Scan(&exists)
+	if err != nil {
+		return false, apperror.Internal(
+			"failed to check note existence",
+			fmt.Errorf("repository.CheckNotesExist note=%s: %w", noteID, err),
+		)
+	}
+
+	return exists, nil
 }
 
 // ================================================================

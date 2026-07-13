@@ -23,6 +23,7 @@ const defaultRecentJobsLimit = 10
 
 type FileService struct {
 	filerepo   repository.FileRepo
+	notesrepo  repository.NotesRepo
 	userrepo   repository.UserRepo
 	s3         *s3pkg.Client
 	db         *sql.DB
@@ -32,13 +33,14 @@ type FileService struct {
 
 func NewFileService(
 	filerepo repository.FileRepo,
+	Notesrepo repository.NotesRepo,
 	userrepo repository.UserRepo,
 	s3 *s3pkg.Client,
 	db *sql.DB,
 	mailclient *mail.ResendClient,
 	logger *slog.Logger,
 ) *FileService {
-	return &FileService{filerepo: filerepo, userrepo: userrepo, s3: s3, db: db, mailclient: mailclient, logger: logger}
+	return &FileService{filerepo: filerepo,notesrepo: Notesrepo, userrepo: userrepo, s3: s3, db: db, mailclient: mailclient, logger: logger}
 }
 
 func (fs *FileService) InitUpload(
@@ -636,38 +638,57 @@ func (fs *FileService) GetJobBySessionID(
 	}, nil
 }
 
-func derefString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
+func (fs *FileService) NotesCreateSessionRequest(ctx context.Context, req models.NotesUploadCreateSessionRequest, userID, userEmail string) (models.NotesUploadCreateSessionResponse, error) {
 
-func intSliceToStringSlice(nums []int) []string {
+	for _,f := range req.Files{
 
-	result := make([]string, 0, len(nums))
-
-	for _, n := range nums {
-		result = append(result, strconv.Itoa(n))
-	}
-
-	return result
-}
-
-func stringPtrToIntPtr(s *string) *int {
-
-	if s == nil {
-		return nil
+		exist,err := fs.notesrepo.CheckNotesExist(ctx,f.Id)
+		if err != nil {
+			return models.NotesUploadCreateSessionResponse{}, err
+		}
+		if !exist {
+			return models.NotesUploadCreateSessionResponse{}, apperror.NotFound(
+				"file_not_found",
+				fmt.Sprintf("file %s was not found in the database", f.Id),
+			)
+		}
 	}
 
-	v, err := strconv.Atoi(*s)
+	sessionID := uuid.NewString()
+
+	token,err := generateToken()
 	if err != nil {
-		return nil
+		return models.NotesUploadCreateSessionResponse{}, apperror.Internal("failed to generate session token", err)
 	}
 
-	return &v
-}
+	tokenStr := strconv.Itoa(token)
 
+	session := models.UploadSession{
+		ID:        sessionID,
+		UserID:    userID,
+		UserEmail: userEmail,
+		Status:    "created",
+		Token:     tokenStr,
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+	}
+
+	if err := fs.filerepo.CreateSession(ctx, session); err != nil {
+		return models.NotesUploadCreateSessionResponse{}, err
+	}
+
+	fs.logger.Info("notes upload session created",
+		"session_id", sessionID,
+		"user_id", userID,
+		"expires_at", session.ExpiresAt,
+	)
+
+	return models.NotesUploadCreateSessionResponse{
+		SessionID: sessionID,
+		Token:     token,
+		ExpiresAt: session.ExpiresAt,
+	}, nil
+	
+}
 //helpers
 
 func (fs *FileService) buildPrintJobs(ctx context.Context, sessions []models.UploadSession) ([]models.PrintJob, error) {

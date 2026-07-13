@@ -153,7 +153,21 @@ type TokenJobResponse struct {
 	Job PrintJob `json:"job"`
 }
 
-
 type AdminPrintHistoryResponse struct {
 	History []PrintJob `json:"history"`
+}
+
+// NotesCreateSessionRequest
+type NotesCreateSessionRequest struct {
+	Id string `json:"id"`
+}
+
+type NotesUploadCreateSessionRequest struct {
+	Files []NotesCreateSessionRequest `json:"files"      validate:"required,min=1,dive"`
+}
+
+type NotesUploadCreateSessionResponse struct {
+	SessionID string `json:"session_id"`
+	Token     int    `json:"token"`
+	ExpiresAt time.Time `json:"expires_at"`
 }

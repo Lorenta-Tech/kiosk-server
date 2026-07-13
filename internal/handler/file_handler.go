@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+
 	//"fmt"
 	"log/slog"
 	"net/http"
@@ -298,3 +299,35 @@ func (fh *FileHandler) HandleGetJobBySessionID(w http.ResponseWriter, r *http.Re
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
 }
+
+func (fh *FileHandler) HandleNotesCreateSessionRequest(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	req, err := utils.DecodeJSON[models.NotesUploadCreateSessionRequest](r)
+	if err != nil {
+		utils.HandleError(w, fh.logger, err)
+		return
+	}
+
+	if err := validator.Validate(req); err != nil {
+		utils.HandleError(w, fh.logger, apperror.BadRequest("validation_error", err.Error()))
+		return
+	}
+
+	 userID := "8473e7f9-2c72-4baf-b861-cd8238b15af6"
+	 userEmail := "hardcoded@email.com"
+
+	resp, err := fh.fileservice.NotesCreateSessionRequest(ctx, req,userID,userEmail)
+	if err != nil {
+		utils.HandleError(w, fh.logger, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
+}
+
+// func (fh *FileHandler) HandleNotesUploadConfirmRequest(w http.ResponseWriter, r *http.Request) {
+// 	ctx,cancel := context.WithTimeout(r.Context(),10*time.Second)
+// 	defer cancel()
+// }
