@@ -40,7 +40,7 @@ func NewFileService(
 	mailclient *mail.ResendClient,
 	logger *slog.Logger,
 ) *FileService {
-	return &FileService{filerepo: filerepo,notesrepo: Notesrepo, userrepo: userrepo, s3: s3, db: db, mailclient: mailclient, logger: logger}
+	return &FileService{filerepo: filerepo, notesrepo: Notesrepo, userrepo: userrepo, s3: s3, db: db, mailclient: mailclient, logger: logger}
 }
 
 func (fs *FileService) InitUpload(
@@ -308,7 +308,7 @@ func (fs *FileService) ConfirmUpload(
 
 	return models.ConfirmUploadResponse{
 		SessionID:   req.SessionID,
-		Status:      "paid",
+		Status:      "Created",
 		Files:       responseFiles,
 		TotalSheets: totalSheets,
 		TotalAmount: totalAmount,
@@ -519,7 +519,6 @@ func (fs *FileService) ExpireSessionAfterPrinting(
 	if err != nil {
 		return err
 	}
-	
 
 	if err := fs.s3.DeleteFile(ctx, key); err != nil {
 		return apperror.Internal(
@@ -640,9 +639,9 @@ func (fs *FileService) GetJobBySessionID(
 
 func (fs *FileService) NotesCreateSessionRequest(ctx context.Context, req models.NotesUploadCreateSessionRequest, userID, userEmail string) (models.NotesUploadCreateSessionResponse, error) {
 
-	for _,f := range req.Files{
+	for _, f := range req.Files {
 
-		exist,err := fs.notesrepo.CheckNotesExist(ctx,f.Id)
+		exist, err := fs.notesrepo.CheckNotesExist(ctx, f.Id)
 		if err != nil {
 			return models.NotesUploadCreateSessionResponse{}, err
 		}
@@ -656,7 +655,7 @@ func (fs *FileService) NotesCreateSessionRequest(ctx context.Context, req models
 
 	sessionID := uuid.NewString()
 
-	token,err := generateToken()
+	token, err := generateToken()
 	if err != nil {
 		return models.NotesUploadCreateSessionResponse{}, apperror.Internal("failed to generate session token", err)
 	}
@@ -687,8 +686,171 @@ func (fs *FileService) NotesCreateSessionRequest(ctx context.Context, req models
 		Token:     token,
 		ExpiresAt: session.ExpiresAt,
 	}, nil
-	
+
 }
+
+func (fs *FileService) NotesUploadConfirmRequest(ctx context.Context, req models.NotesUploadConfirmSessionRequest) (models.ConfirmNotesUploadResponse, error) {
+
+	fs.logger.Info("Notes Upload started", "session_id", req.SessionID, "file_count", len(req.Notes))
+
+	session, err := fs.filerepo.GetSessionByID(ctx, req.SessionID)
+	if err != nil {
+		return models.ConfirmNotesUploadResponse{}, err
+	}
+
+	if session.Status != "created" && session.Status != "uploaded" {
+		return models.ConfirmNotesUploadResponse{}, apperror.BadRequest(
+			"session_not_confirmable",
+			fmt.Sprintf("session is in status '%s' and cannot be confirmed", session.Status),
+		)
+	}
+
+	if time.Now().After(session.ExpiresAt) {
+		return models.ConfirmNotesUploadResponse{}, apperror.BadRequest(
+			"session_expired",
+			"this upload session has expired, please start again",
+		)
+	}
+
+	fs.logger.Info("session validated for confirm",
+		"session_id", req.SessionID,
+		"status", session.Status,
+	)
+
+	type enrichedNotes struct {
+		dbRow    models.UploadFile
+		response models.ConfirmNotesResponse
+	}
+
+	enriched := make([]enrichedNotes, 0, len(req.Notes))
+	var totalAmount float64
+	var totalSheets int
+
+	for _, n := range req.Notes {
+		dbNotes, err := fs.notesrepo.GetNoteByID(ctx, n.FileID)
+		if err != nil {
+			return models.ConfirmNotesUploadResponse{}, err
+		}
+
+		exists, err := fs.s3.FileExists(ctx, dbNotes.UploadedBy)
+		if err != nil {
+			fs.logger.Error("s3 existence check failed",
+				"session_id", req.SessionID,
+				"file_id", n.FileID,
+				"uploaded_key", dbNotes.UploadedBy,
+				"error", err,
+			)
+			return models.ConfirmNotesUploadResponse{}, apperror.Internal(
+				"failed to verify file upload status", err,
+			)
+		}
+
+		if !exists {
+			fs.logger.Error("file does not exist in s3",
+				"session_id", req.SessionID,
+				"file_id", n.FileID,
+				"uploaded_key", dbNotes.UploadedBy,
+			)
+			return models.ConfirmNotesUploadResponse{}, apperror.BadRequest(
+				"file_not_found",
+				"the requested file was not found",
+			)
+		}
+
+		price, sheets := utils.CalculateFilePrice(
+			n.NumOfPages, n.PageRange, n.Copies, n.PageLayout,
+			n.PrintingMode, n.PrintingSide,
+		)
+
+		fs.logger.Info("file price calculated",
+			"price", price,
+			"sheets", sheets,
+			"num_of_pages", n.NumOfPages,
+			"copies", n.Copies,
+			"page_layout", n.PageLayout,
+			"printing_mode", n.PrintingMode,
+			"printing_side", n.PrintingSide,
+		)
+
+		totalAmount += price
+		totalSheets += sheets
+
+		enriched = append(enriched, enrichedNotes{
+			dbRow: models.UploadFile{
+				ID:            dbNotes.ID,
+				SessionID:     req.SessionID,
+				FileName:      dbNotes.Title,
+				StagingKey:    dbNotes.UploadedBy,
+				FileStatus:    "Created",
+				PrintingMode:  &n.PrintingMode,
+				PrintingSide:  &n.PrintingSide,
+				PageRange:     n.PageRange,
+				PageLayout:    &n.PageLayout,
+				Copies:        &n.Copies,
+				NumberOfPages: &n.NumOfPages,
+				Price:         &price,
+			},
+			response: models.ConfirmNotesResponse{
+				FileID:     dbNotes.ID,
+				FileName:   dbNotes.Title,
+				NumOfPages: n.NumOfPages,
+				Copies:     n.Copies,
+				Price:      price,
+			},
+		})
+
+		fs.logger.Info("file confirmed",
+			"session_id", req.SessionID,
+			"file_id", n.FileID,
+			"file_name", dbNotes.Title,
+			"sheets", sheets,
+			"price", price,
+		)
+
+	}
+
+	tx, err := fs.db.BeginTx(ctx, nil)
+	if err != nil {
+		return models.ConfirmNotesUploadResponse{}, apperror.Internal("failed to begin transaction", err)
+	}
+	defer tx.Rollback()
+
+	txRepo := fs.filerepo.WithTx(tx)
+
+	for _, ef := range enriched {
+		if err := txRepo.UpdateFileWithPrintOptions(ctx, ef.dbRow); err != nil {
+			return models.ConfirmNotesUploadResponse{}, err
+		}
+	}
+
+	if err := txRepo.UpdateSessionPriced(ctx, req.SessionID, totalAmount, totalSheets); err != nil {
+		return models.ConfirmNotesUploadResponse{}, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return models.ConfirmNotesUploadResponse{}, apperror.Internal("failed to commit transaction", err)
+	}
+
+	fs.logger.Info("confirm upload completed",
+		"session_id", req.SessionID,
+		"total_sheets", totalSheets,
+		"total_amount", totalAmount,
+	)
+
+	responseFiles := make([]models.ConfirmNotesResponse, 0, len(enriched))
+	for _, ef := range enriched {
+		responseFiles = append(responseFiles, ef.response)
+	}
+
+	return models.ConfirmNotesUploadResponse{
+		SessionID:   req.SessionID,
+		Status:      "Created",
+		Files:       responseFiles,
+		TotalSheets: totalSheets,
+		TotalAmount: totalAmount,
+	}, nil
+}
+
 //helpers
 
 func (fs *FileService) buildPrintJobs(ctx context.Context, sessions []models.UploadSession) ([]models.PrintJob, error) {

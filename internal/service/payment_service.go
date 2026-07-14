@@ -275,6 +275,15 @@ func (ps *PaymentService) handlePaymentSuccess(ctx context.Context, payload mode
 	promoted := make([]promotedFile, 0, len(files))
 
 	for _, f := range files {
+		if strings.HasPrefix(f.StagingKey,"notes/"){
+			promoted = append(promoted, promotedFile{fileID: f.ID, finalKey: f.StagingKey})
+			ps.logger.Info("file promoted (notes file, no S3 copy)",
+				"session_id", session.ID,
+				"file_id", f.ID,
+				"staging_key", f.StagingKey,
+			)
+			continue
+		}
 		finalKey, err := ps.s3.PromoteFile(ctx, f.StagingKey)
 		if err != nil {
 			ps.logger.Error("failed to promote file",

@@ -167,7 +167,38 @@ type NotesUploadCreateSessionRequest struct {
 }
 
 type NotesUploadCreateSessionResponse struct {
-	SessionID string `json:"session_id"`
-	Token     int    `json:"token"`
+	SessionID string    `json:"session_id"`
+	Token     int       `json:"token"`
 	ExpiresAt time.Time `json:"expires_at"`
+}
+
+type NotesConfigs struct {
+	FileID       string   `json:"file_id"       validate:"required,uuid4"`
+	Copies       int      `json:"copies"        validate:"required,min=1"`
+	PrintingSide string   `json:"printing_side" validate:"required,oneof=single_side double_side"`
+	PrintingMode string   `json:"printing_mode" validate:"required,oneof=monochromatic color"`
+	PageRange    []string `json:"page_range"    validate:"required,min=1"`
+	PageLayout   int      `json:"page_layout"   validate:"required,min=1"`
+	NumOfPages   int      `json:"num_of_pages"  validate:"required,min=1"`
+}
+
+type NotesUploadConfirmSessionRequest struct {
+	SessionID string         `json:"session_id" validate:"required,uuid4"`
+	Notes     []NotesConfigs `json:"notes"      validate:"required,min=1,dive"`
+}
+
+type ConfirmNotesResponse struct {
+	FileID     string  `json:"file_id"`
+	FileName   string  `json:"file_name"`
+	NumOfPages int     `json:"num_of_pages"`
+	Copies     int     `json:"copies"`
+	Price      float64 `json:"price"`
+}
+
+type ConfirmNotesUploadResponse struct {
+	SessionID   string                 `json:"session_id"`
+	Status      string                 `json:"status"`
+	Files       []ConfirmNotesResponse `json:"files"`
+	TotalSheets int                    `json:"total_sheets"`
+	TotalAmount float64                `json:"total_amount"`
 }

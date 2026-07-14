@@ -327,7 +327,27 @@ func (fh *FileHandler) HandleNotesCreateSessionRequest(w http.ResponseWriter, r 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
 }
 
-// func (fh *FileHandler) HandleNotesUploadConfirmRequest(w http.ResponseWriter, r *http.Request) {
-// 	ctx,cancel := context.WithTimeout(r.Context(),10*time.Second)
-// 	defer cancel()
-// }
+func (fh *FileHandler) HandleNotesUploadConfirmRequest(w http.ResponseWriter, r *http.Request) {
+	ctx,cancel := context.WithTimeout(r.Context(),10*time.Second)
+	defer cancel()
+
+	req,err := utils.DecodeJSON[models.NotesUploadConfirmSessionRequest](r)
+
+	if err != nil {
+		utils.HandleError(w,fh.logger,err)
+		return
+	}
+
+	if err := validator.Validate(req); err != nil {
+		utils.HandleError(w, fh.logger, apperror.BadRequest("validation_error", err.Error()))
+		return
+	}
+
+	resp,err := fh.fileservice.NotesUploadConfirmRequest(ctx,req)
+	if err != nil {
+		utils.HandleError(w,fh.logger,err)
+		return
+	}
+
+	utils.WriteJSON(w,http.StatusOK,utils.Envelope{"data":resp})
+}
