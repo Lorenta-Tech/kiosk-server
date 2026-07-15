@@ -97,6 +97,7 @@ type CreateSubjectRequest struct {
 // Student Request Models
 // ================================================================
 
+//unused for now
 type NotePrintItem struct {
 	NoteID       string   `json:"note_id"       validate:"required,uuid"`
 	Copies       int      `json:"copies"        validate:"required,min=1"`

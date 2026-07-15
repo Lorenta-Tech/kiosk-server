@@ -99,7 +99,7 @@ func NewApplication() (*Application, error) {
 	filerepo := repository.NewFileRepository(pgdb)
 	paymentRepo := repository.NewPaymentRepository(pgdb)
 	notesrepo := repository.NewNotesRepository(pgdb)
-	deptadminRepo := repository.NewAdminRepository(pgdb)
+	deptadminRepo := repository.NewDeptAdminRepository(pgdb)
 	adminrepo := repository.NewAdminRepository(pgdb)
 
 	//services
