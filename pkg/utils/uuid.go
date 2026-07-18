@@ -7,3 +7,4 @@ import (
 func GenerateUUID() string {
 	return uuid.New().String()
 }
+

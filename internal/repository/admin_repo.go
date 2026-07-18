@@ -23,10 +23,17 @@ type AdminRepo interface {
 	AdminGetTotalSheetsPrinted(ctx context.Context) (int, error)
 	AdminGetTotalColorSheetsPrinted(ctx context.Context) (int, error)
 	AdminGetTotalBlackAndWhiteSheetsPrinted(ctx context.Context) (int, error)
+	AdminGetRevenueFromDouble_Sided_Prints(ctx context.Context) (int, error)
+	AdminGetRevenueFromSingle_Sided_Prints(ctx context.Context) (int, error)
 	AdminGetRevenueLast24Hours(ctx context.Context) (float64, error)
 	AdminGetSheetsPrintedLast24Hours(ctx context.Context) (int, error)
 	AdminGetColorSheetsPrintedLast24Hours(ctx context.Context) (int, error)
 	AdminGetBlackAndWhiteSheetsPrintedLast24Hours(ctx context.Context) (int, error)
+	AdminGetTotalSheetsPrintedInLast24HoursByDouble_Sided_Prints(ctx context.Context) (int, error)
+	AdminGetTotalSheetsPrintedInLast24HoursBySingle_Sided_Prints(ctx context.Context) (int, error)
+	AdminGetLast24HoursRevenueFromDouble_Sided_Prints(ctx context.Context) (int, error)
+	AdminGetLast24HoursRevenueFromSingle_Sided_Prints(ctx context.Context) (int, error)
+	//AdminGetTotalSheestPrintedInLast24Hours(ctx context.Context) (int, error)
 }
 
 func (r *PostgresAdminRepo) AdminFetchPrintHistory(ctx context.Context) ([]models.PrintJob, error) {
@@ -145,9 +152,9 @@ func (r *PostgresAdminRepo) AdminFetchPrintHistory(ctx context.Context) ([]model
 
 func (r *PostgresAdminRepo) AdminGetTotalRevenue(ctx context.Context) (float64, error) {
 	const query = `
-		SELECT COALESCE(SUM(total_amount), 0)
-		FROM upload_sessions
-		WHERE status = 'completed'
+		SELECT COALESCE(SUM(total_amount), 0) AS total_amount
+        FROM upload_sessions
+        WHERE status IN ('completed', 'paid')
 	`
 
 	var total float64
@@ -160,12 +167,12 @@ func (r *PostgresAdminRepo) AdminGetTotalRevenue(ctx context.Context) (float64, 
 
 	return total, nil
 }
+
 func (r *PostgresAdminRepo) AdminGetTotalSheetsPrinted(ctx context.Context) (int, error) {
 	const query = `
-		SELECT COALESCE(SUM(uf.number_of_pages), 0)
-		FROM upload_files uf
-		JOIN upload_sessions us ON us.id = uf.session_id
-		WHERE us.status = 'completed'
+SELECT COALESCE(SUM(total_sheets), 0) AS total_sheets_printed
+FROM upload_sessions
+WHERE status IN ('completed')
 	`
 	var total int
 	if err := r.db.QueryRowContext(ctx, query).Scan(&total); err != nil {
@@ -220,7 +227,8 @@ func (r *PostgresAdminRepo) AdminGetColorSheetsPrintedLast24Hours(ctx context.Co
 		JOIN upload_sessions us ON us.id = uf.session_id
 		WHERE us.status = 'completed'
 		  AND uf.printing_mode = 'color'
-		  AND us.created_at >= NOW() - INTERVAL '24 hours'
+		    AND (created_at AT TIME ZONE 'Asia/Kolkata')::date =
+            (NOW() AT TIME ZONE 'Asia/Kolkata')::date
 	`
 
 	var total int
@@ -234,7 +242,6 @@ func (r *PostgresAdminRepo) AdminGetColorSheetsPrintedLast24Hours(ctx context.Co
 	return total, nil
 }
 
-
 func (r *PostgresAdminRepo) AdminGetBlackAndWhiteSheetsPrintedLast24Hours(ctx context.Context) (int, error) {
 	const query = `
 		SELECT COALESCE(SUM(uf.number_of_pages), 0)
@@ -242,7 +249,8 @@ func (r *PostgresAdminRepo) AdminGetBlackAndWhiteSheetsPrintedLast24Hours(ctx co
 		JOIN upload_sessions us ON us.id = uf.session_id
 		WHERE us.status = 'completed'
 		  AND uf.printing_mode = 'monochromatic'
-		  AND us.created_at >= NOW() - INTERVAL '24 hours'
+		    AND (created_at AT TIME ZONE 'Asia/Kolkata')::date =
+            (NOW() AT TIME ZONE 'Asia/Kolkata')::date
 	`
 
 	var total int
@@ -258,10 +266,11 @@ func (r *PostgresAdminRepo) AdminGetBlackAndWhiteSheetsPrintedLast24Hours(ctx co
 
 func (r *PostgresAdminRepo) AdminGetRevenueLast24Hours(ctx context.Context) (float64, error) {
 	const query = `
-		SELECT COALESCE(SUM(total_amount), 0)
-		FROM upload_sessions
-		WHERE status = 'completed'
-		  AND created_at >= NOW() - INTERVAL '24 hours'
+		SELECT COALESCE(SUM(total_amount), 0) AS total_amount
+        FROM upload_sessions
+        WHERE status IN ('completed', 'paid')
+        AND (created_at AT TIME ZONE 'Asia/Kolkata')::date =
+        (NOW() AT TIME ZONE 'Asia/Kolkata')::date
 	`
 
 	var total float64
@@ -277,11 +286,11 @@ func (r *PostgresAdminRepo) AdminGetRevenueLast24Hours(ctx context.Context) (flo
 
 func (r *PostgresAdminRepo) AdminGetSheetsPrintedLast24Hours(ctx context.Context) (int, error) {
 	const query = `
-		SELECT COALESCE(SUM(uf.number_of_pages), 0)
-		FROM upload_files uf
-		JOIN upload_sessions us ON us.id = uf.session_id
-		WHERE us.status = 'completed'
-		  AND us.created_at >= NOW() - INTERVAL '24 hours'
+		SELECT COALESCE(SUM(total_sheets), 0) AS total_sheets
+        FROM upload_sessions
+        WHERE status IN ('completed')
+        AND (created_at AT TIME ZONE 'Asia/Kolkata')::date =
+        (NOW() AT TIME ZONE 'Asia/Kolkata')::date
 	`
 
 	var total int
@@ -289,6 +298,161 @@ func (r *PostgresAdminRepo) AdminGetSheetsPrintedLast24Hours(ctx context.Context
 		return 0, apperror.Internal(
 			"failed to calculate sheets printed for last 24 hours",
 			fmt.Errorf("repository.AdminGetSheetsPrintedLast24Hours: %w", err),
+		)
+	}
+
+	return total, nil
+}
+
+func (r *PostgresAdminRepo) AdminGetRevenueFromSingle_Sided_Prints(ctx context.Context) (int, error) {
+	const query = `
+SELECT COALESCE(SUM(uf.price),0) AS double_side_revenue
+FROM upload_sessions us
+JOIN upload_files uf
+ON us.id = uf.session_id
+WHERE us.status IN ('completed','paid')
+AND uf.printing_side = 'double_side'
+  `
+
+	var total int
+	if err := r.db.QueryRowContext(ctx, query).Scan(&total); err != nil {
+		return 0, apperror.Internal(
+			"failed to calculate revenue from single-sided prints",
+			fmt.Errorf("repository.AdminGetRevenueFromSingle_Sided_Prints: %w", err),
+		)
+	}
+
+	return total, nil
+}
+
+func (r *PostgresAdminRepo) AdminGetRevenueFromDouble_Sided_Prints(ctx context.Context) (int, error) {
+	const query = `
+SELECT
+    COALESCE(SUM(uf.price), 0) AS double_side_revenue
+FROM upload_sessions us
+JOIN upload_files uf
+    ON us.id = uf.session_id
+WHERE us.status = 'completed'
+  AND uf.printing_side = 'double_side'
+  `
+
+	var total int
+	if err := r.db.QueryRowContext(ctx, query).Scan(&total); err != nil {
+		return 0, apperror.Internal(
+			"failed to calculate revenue from double-sided prints",
+			fmt.Errorf("repository.AdminGetRevenueFromDouble_Sided_Prints: %w", err),
+		)
+	}
+
+	return total, nil
+}
+
+func (r *PostgresAdminRepo) AdminGetLast24HoursRevenueFromSingle_Sided_Prints(ctx context.Context) (int, error) {
+	const query = `
+SELECT COALESCE(SUM(uf.price),0)
+FROM upload_sessions us
+JOIN upload_files uf
+ON us.id = uf.session_id
+WHERE us.status IN ('completed','paid')
+AND uf.printing_side='single_side'
+AND (created_at AT TIME ZONE 'Asia/Kolkata')::date =
+(NOW() AT TIME ZONE 'Asia/Kolkata')::date
+	    `
+	var total int
+	if err := r.db.QueryRowContext(ctx, query).Scan(&total); err != nil {
+		return 0, apperror.Internal(
+			"failed to calculate last 24 hours revenue from single-sided prints",
+			fmt.Errorf("repository.AdminGetLast24HoursRevenueFromSingle_Sided_Prints: %w", err),
+		)
+	}
+
+	return total, nil
+}
+
+func (r *PostgresAdminRepo) AdminGetLast24HoursRevenueFromDouble_Sided_Prints(ctx context.Context) (int, error) {
+	const query = `
+SELECT COALESCE(SUM(uf.price),0)
+FROM upload_sessions us
+JOIN upload_files uf
+ON us.id = uf.session_id
+WHERE us.status IN ('completed','paid')
+AND uf.printing_side='double_side'
+AND (us.created_at AT TIME ZONE 'Asia/Kolkata')::date =
+(NOW() AT TIME ZONE 'Asia/Kolkata')::date
+	    `
+
+	var total int
+	if err := r.db.QueryRowContext(ctx, query).Scan(&total); err != nil {
+		return 0, apperror.Internal(
+			"failed to calculate last 24 hours revenue from double-sided prints",
+			fmt.Errorf("repository.AdminGetLast24HoursRevenueFromDouble_Sided_Prints: %w", err),
+		)
+	}
+
+	return total, nil
+}
+
+// func (r *PostgresAdminRepo) AdminGetTotalSheestPrintedInLast24Hours(ctx context.Context) (int, error) {
+// 	const query = `	SELECT COALESCE(SUM(total_sheets), 0) 
+// 	AS total_sheets FROM upload_sessions
+// 	WHERE status IN ('completed', 'paid')
+//     AND (created_at AT TIME ZONE 'Asia/Kolkata')::date = DATE '2026-07-15'
+// 	`
+// 	var total int
+// 	if err := r.db.QueryRowContext(ctx, query).Scan(&total); err != nil {
+// 		return 0, apperror.Internal(
+// 			"failed to calculate total sheets printed in last 24 hours",
+// 			fmt.Errorf("repository.AdminGetTotalSheestPrintedInLast24Hours: %w", err),
+// 		)
+// 	}
+
+// 	return total, nil
+// }
+
+func (r *PostgresAdminRepo) AdminGetTotalSheetsPrintedInLast24HoursBySingle_Sided_Prints(ctx context.Context) (int, error) {
+	query := `SELECT COALESCE(
+    SUM(
+        CEIL(uf.number_of_pages::numeric / uf.page_layout) * uf.copies
+    ),
+    0
+) AS single_side_sheets
+FROM upload_sessions us
+JOIN upload_files uf
+ON us.id = uf.session_id
+WHERE us.status IN ('completed','paid')
+  AND uf.printing_side = 'single_side'
+  AND (us.created_at AT TIME ZONE 'Asia/Kolkata')::date =
+      (NOW() AT TIME ZONE 'Asia/Kolkata')::date;`
+	var total int
+	if err := r.db.QueryRowContext(ctx, query).Scan(&total); err != nil {
+		return 0, apperror.Internal(
+			"failed to calculate total sheets printed in last 24 hours by single-sided prints",
+			fmt.Errorf("repository.AdminGetTotalSheetsPrintedInLast24HoursBySingle_Sided_Prints: %w", err),
+		)
+	}
+
+	return total, nil
+}
+
+func (r *PostgresAdminRepo) AdminGetTotalSheetsPrintedInLast24HoursByDouble_Sided_Prints(ctx context.Context) (int, error) {
+	query := `SELECT COALESCE(
+    SUM(
+        CEIL(uf.number_of_pages::numeric / (uf.page_layout * 2)) * uf.copies
+    ),
+    0
+) AS double_side_sheets
+FROM upload_sessions us
+JOIN upload_files uf
+ON us.id = uf.session_id
+WHERE us.status IN ('completed','paid')
+  AND uf.printing_side = 'double_side'
+  AND (us.created_at AT TIME ZONE 'Asia/Kolkata')::date =
+      (NOW() AT TIME ZONE 'Asia/Kolkata')::date;`
+	var total int
+	if err := r.db.QueryRowContext(ctx, query).Scan(&total); err != nil {
+		return 0, apperror.Internal(
+			"failed to calculate total sheets printed in last 24 hours by double-sided prints",
+			fmt.Errorf("repository.AdminGetTotalSheetsPrintedInLast24HoursByDouble_Sided_Prints: %w", err),
 		)
 	}
 

@@ -69,3 +69,33 @@ func (s *AdminRepo) AdminGetBlackAndWhiteSheetsPrintedLast24Hours(ctx context.Co
 	s.logger.Info("AdminGetBlackAndWhiteSheetsPrintedLast24Hours called")
 	return s.adminrepo.AdminGetBlackAndWhiteSheetsPrintedLast24Hours(ctx)
 }
+
+func (s *AdminRepo) AdminGetTotalSheetsPrintedInLast24HoursByDouble_Sided_Prints(ctx context.Context) (int, error) {
+	s.logger.Info("AdminGetTotalSheetsPrintedInLast24HoursByDouble_Sided_Prints called")
+	return s.adminrepo.AdminGetTotalSheetsPrintedInLast24HoursByDouble_Sided_Prints(ctx)
+}
+
+func (s *AdminRepo) AdminGetTotalSheetsPrintedInLast24HoursBySingle_Sided_Prints(ctx context.Context) (int, error) {
+	s.logger.Info("AdminGetTotalSheetsPrintedInLast24HoursBySingle_Sided_Prints called")
+	return s.adminrepo.AdminGetTotalSheetsPrintedInLast24HoursBySingle_Sided_Prints(ctx)
+}
+
+func (s *AdminRepo) AdminGetLast24HoursRevenueFromDouble_Sided_Prints(ctx context.Context) (int, error) {
+	s.logger.Info("AdminGetLast24HoursRevenueFromDouble_Sided_Prints called")
+	return s.adminrepo.AdminGetLast24HoursRevenueFromDouble_Sided_Prints(ctx)
+}
+func (s *AdminRepo) AdminGetLast24HoursRevenueFromSingle_Sided_Prints(ctx context.Context) (int, error) {
+	s.logger.Info("AdminGetLast24HoursRevenueFromSingle_Sided_Prints called")
+	return s.adminrepo.AdminGetLast24HoursRevenueFromSingle_Sided_Prints(ctx)
+}
+
+func (s *AdminRepo) AdminGetRevenueFromDouble_Sided_Prints(ctx context.Context) (int, error) {
+	s.logger.Info("AdminGetRevenueFromDouble_Sided_Prints called")
+	return s.adminrepo.AdminGetRevenueFromDouble_Sided_Prints(ctx)
+}
+
+func (s *AdminRepo) AdminGetRevenueFromSingle_Sided_Prints(ctx context.Context) (int, error) {
+	s.logger.Info("AdminGetRevenueFromSingle_Sided_Prints called")
+	return s.adminrepo.AdminGetRevenueFromSingle_Sided_Prints(ctx)
+}
+

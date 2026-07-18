@@ -159,3 +159,90 @@ func (h *AdminHandler) HandleGetBlackAndWhiteSheetsPrintedLast24Hours(w http.Res
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"black_and_white_sheets_printed_last_24_hours": totalBWSheets})
 }	
 
+
+func (h *AdminHandler) HandleGetTotalSheetsPrintedInLast24HoursByDouble_Sided_Prints(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	h.logger.Info("HandleGetTotalSheetsPrintedInLast24HoursByDouble_Sided_Prints called")
+	totalSheets, err := h.AdminService.AdminGetTotalSheetsPrintedInLast24HoursByDouble_Sided_Prints(ctx)
+
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"total_sheets_printed_last_24_hours_by_double_sided_prints": totalSheets})
+}
+
+
+func (h *AdminHandler) HandleGetTotalSheetsPrintedInLast24HoursBySingle_Sided_Prints(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	h.logger.Info("HandleGetTotalSheetsPrintedInLast24HoursBySingle_Sided_Prints called")
+	totalSheets, err := h.AdminService.AdminGetTotalSheetsPrintedInLast24HoursBySingle_Sided_Prints(ctx)
+
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"total_sheets_printed_last_24_hours_by_single_sided_prints": totalSheets})
+}
+
+func (h *AdminHandler) HandleGetLast24HoursRevenueFromDouble_Sided_Prints(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	h.logger.Info("HandleGetLast24HoursRevenueFromDouble_Sided_Prints called")
+	revenue, err := h.AdminService.AdminGetLast24HoursRevenueFromDouble_Sided_Prints(ctx)
+
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"last_24_hours_revenue_from_double_sided_prints": revenue})
+}
+
+
+func (h *AdminHandler) HandleGetLast24HoursRevenueFromSingle_Sided_Prints(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	h.logger.Info("HandleGetLast24HoursRevenueFromSingle_Sided_Prints called")
+	revenue, err := h.AdminService.AdminGetLast24HoursRevenueFromSingle_Sided_Prints(ctx)
+
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"last_24_hours_revenue_from_single_sided_prints": revenue})
+}
+
+func (h *AdminHandler) HandleGetRevenueFromDouble_Sided_Prints(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	h.logger.Info("HandleGetRevenueFromDouble_Sided_Prints called")
+	revenue, err := h.AdminService.AdminGetRevenueFromDouble_Sided_Prints(ctx)
+
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"revenue_from_double_sided_prints": revenue})
+}
+
+func (h *AdminHandler) HandleGetRevenueFromSingle_Sided_Prints(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	h.logger.Info("HandleGetRevenueFromSingle_Sided_Prints called")
+	revenue, err := h.AdminService.AdminGetRevenueFromSingle_Sided_Prints(ctx)
+
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"revenue_from_single_sided_prints": revenue})
+}
+
