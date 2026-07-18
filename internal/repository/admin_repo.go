@@ -25,6 +25,8 @@ type AdminRepo interface {
 	AdminGetTotalBlackAndWhiteSheetsPrinted(ctx context.Context) (int, error)
 	AdminGetRevenueFromDouble_Sided_Prints(ctx context.Context) (int, error)
 	AdminGetRevenueFromSingle_Sided_Prints(ctx context.Context) (int, error)
+	AdminGetTotalSheetsPrintedByDouble_Sided_Prints(ctx context.Context) (int, error)
+	AdminGetTotalSheetsPrintedBySingle_Sided_Prints(ctx context.Context) (int, error)
 	AdminGetRevenueLast24Hours(ctx context.Context) (float64, error)
 	AdminGetSheetsPrintedLast24Hours(ctx context.Context) (int, error)
 	AdminGetColorSheetsPrintedLast24Hours(ctx context.Context) (int, error)
@@ -220,6 +222,7 @@ func (r *PostgresAdminRepo) AdminGetTotalBlackAndWhiteSheetsPrinted(ctx context.
 	return total, nil
 }
 
+// Not Working as expected, need to check the query
 func (r *PostgresAdminRepo) AdminGetColorSheetsPrintedLast24Hours(ctx context.Context) (int, error) {
 	const query = `
 		SELECT COALESCE(SUM(uf.number_of_pages), 0)
@@ -242,6 +245,7 @@ func (r *PostgresAdminRepo) AdminGetColorSheetsPrintedLast24Hours(ctx context.Co
 	return total, nil
 }
 
+// Not Working as expected, need to check the query
 func (r *PostgresAdminRepo) AdminGetBlackAndWhiteSheetsPrintedLast24Hours(ctx context.Context) (int, error) {
 	const query = `
 		SELECT COALESCE(SUM(uf.number_of_pages), 0)
@@ -331,10 +335,9 @@ SELECT
     COALESCE(SUM(uf.price), 0) AS double_side_revenue
 FROM upload_sessions us
 JOIN upload_files uf
-    ON us.id = uf.session_id
+ON us.id = uf.session_id
 WHERE us.status = 'completed'
-  AND uf.printing_side = 'double_side'
-  `
+  AND uf.printing_side = 'double_side'`
 
 	var total int
 	if err := r.db.QueryRowContext(ctx, query).Scan(&total); err != nil {
@@ -356,8 +359,7 @@ ON us.id = uf.session_id
 WHERE us.status IN ('completed','paid')
 AND uf.printing_side='single_side'
 AND (created_at AT TIME ZONE 'Asia/Kolkata')::date =
-(NOW() AT TIME ZONE 'Asia/Kolkata')::date
-	    `
+(NOW() AT TIME ZONE 'Asia/Kolkata')::date`
 	var total int
 	if err := r.db.QueryRowContext(ctx, query).Scan(&total); err != nil {
 		return 0, apperror.Internal(
@@ -378,8 +380,7 @@ ON us.id = uf.session_id
 WHERE us.status IN ('completed','paid')
 AND uf.printing_side='double_side'
 AND (us.created_at AT TIME ZONE 'Asia/Kolkata')::date =
-(NOW() AT TIME ZONE 'Asia/Kolkata')::date
-	    `
+(NOW() AT TIME ZONE 'Asia/Kolkata')::date`
 
 	var total int
 	if err := r.db.QueryRowContext(ctx, query).Scan(&total); err != nil {
@@ -393,7 +394,7 @@ AND (us.created_at AT TIME ZONE 'Asia/Kolkata')::date =
 }
 
 // func (r *PostgresAdminRepo) AdminGetTotalSheestPrintedInLast24Hours(ctx context.Context) (int, error) {
-// 	const query = `	SELECT COALESCE(SUM(total_sheets), 0) 
+// 	const query = `	SELECT COALESCE(SUM(total_sheets), 0)
 // 	AS total_sheets FROM upload_sessions
 // 	WHERE status IN ('completed', 'paid')
 //     AND (created_at AT TIME ZONE 'Asia/Kolkata')::date = DATE '2026-07-15'
@@ -422,7 +423,7 @@ ON us.id = uf.session_id
 WHERE us.status IN ('completed','paid')
   AND uf.printing_side = 'single_side'
   AND (us.created_at AT TIME ZONE 'Asia/Kolkata')::date =
-      (NOW() AT TIME ZONE 'Asia/Kolkata')::date;`
+      (NOW() AT TIME ZONE 'Asia/Kolkata')::date`
 	var total int
 	if err := r.db.QueryRowContext(ctx, query).Scan(&total); err != nil {
 		return 0, apperror.Internal(
@@ -445,14 +446,62 @@ FROM upload_sessions us
 JOIN upload_files uf
 ON us.id = uf.session_id
 WHERE us.status IN ('completed','paid')
-  AND uf.printing_side = 'double_side'
-  AND (us.created_at AT TIME ZONE 'Asia/Kolkata')::date =
-      (NOW() AT TIME ZONE 'Asia/Kolkata')::date;`
+AND uf.printing_side = 'double_side'
+AND (us.created_at AT TIME ZONE 'Asia/Kolkata')::date =
+(NOW() AT TIME ZONE 'Asia/Kolkata')::date`
 	var total int
 	if err := r.db.QueryRowContext(ctx, query).Scan(&total); err != nil {
 		return 0, apperror.Internal(
 			"failed to calculate total sheets printed in last 24 hours by double-sided prints",
 			fmt.Errorf("repository.AdminGetTotalSheetsPrintedInLast24HoursByDouble_Sided_Prints: %w", err),
+		)
+	}
+
+	return total, nil
+}
+
+func (r *PostgresAdminRepo) AdminGetTotalSheetsPrintedBySingle_Sided_Prints(ctx context.Context) (int, error) {
+	query := `
+	SELECT COALESCE(
+    SUM(
+        CEIL(uf.number_of_pages::numeric / uf.page_layout) * uf.copies
+    ),
+    0
+) AS single_side_sheets
+FROM upload_sessions us
+JOIN upload_files uf
+ON us.id = uf.session_id
+WHERE us.status IN ('completed','paid')
+  AND uf.printing_side = 'single_side'
+	`
+	var total int
+	if err := r.db.QueryRowContext(ctx, query).Scan(&total); err != nil {
+		return 0, apperror.Internal(
+			"failed to calculate total sheets printed by single-sided prints",
+			fmt.Errorf("repository.AdminGetTotalSheetsPrintedBySingle_Sided_Prints: %w", err),
+		)
+	}
+
+	return total, nil
+}
+
+func (r *PostgresAdminRepo) AdminGetTotalSheetsPrintedByDouble_Sided_Prints(ctx context.Context) (int, error) {
+	query := `SELECT COALESCE(
+    SUM(
+        CEIL(uf.number_of_pages::numeric / (uf.page_layout * 2)) * uf.copies
+    ),
+    0
+) AS double_side_sheets
+FROM upload_sessions us
+JOIN upload_files uf
+ON us.id = uf.session_id
+WHERE us.status IN ('completed','paid')
+AND uf.printing_side = 'double_side'`
+	var total int
+	if err := r.db.QueryRowContext(ctx, query).Scan(&total); err != nil {
+		return 0, apperror.Internal(
+			"failed to calculate total sheets printed by double-sided prints",
+			fmt.Errorf("repository.AdminGetTotalSheetsPrintedByDouble_Sided_Prints: %w", err),
 		)
 	}
 

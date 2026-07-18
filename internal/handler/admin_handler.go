@@ -246,3 +246,30 @@ func (h *AdminHandler) HandleGetRevenueFromSingle_Sided_Prints(w http.ResponseWr
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"revenue_from_single_sided_prints": revenue})
 }
 
+func (h *AdminHandler) HandleGetDoubleSidePrintsCount(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	h.logger.Info("HandleGetDoubleSidePrintsCount called")
+	totalSheets, err := h.AdminService.AdminGetTotalSheetsPrintedByDouble_Sided_Prints(ctx)
+
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"total_sheets_printed_by_double_sided_prints": totalSheets})
+}
+
+func (h *AdminHandler) HandleGetSingleSidePrintsCount(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	h.logger.Info("HandleGetSingleSidePrintsCount called")
+	totalSheets, err := h.AdminService.AdminGetTotalSheetsPrintedBySingle_Sided_Prints(ctx)
+
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"total_sheets_printed_by_single_sided_prints": totalSheets})
+}

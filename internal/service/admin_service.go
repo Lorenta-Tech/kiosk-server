@@ -99,3 +99,12 @@ func (s *AdminRepo) AdminGetRevenueFromSingle_Sided_Prints(ctx context.Context) 
 	return s.adminrepo.AdminGetRevenueFromSingle_Sided_Prints(ctx)
 }
 
+func (s *AdminRepo) AdminGetTotalSheetsPrintedByDouble_Sided_Prints(ctx context.Context) (int, error) {
+	s.logger.Info("AdminGetTotalSheetsPrintedByDouble_Sided_Prints called")
+	return s.adminrepo.AdminGetTotalSheetsPrintedByDouble_Sided_Prints(ctx)
+}
+
+func (s *AdminRepo) AdminGetTotalSheetsPrintedBySingle_Sided_Prints(ctx context.Context) (int, error) {
+	s.logger.Info("AdminGetTotalSheetsPrintedBySingle_Sided_Prints called")
+	return s.adminrepo.AdminGetTotalSheetsPrintedBySingle_Sided_Prints(ctx)
+}
