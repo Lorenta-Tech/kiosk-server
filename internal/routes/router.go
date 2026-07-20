@@ -203,6 +203,7 @@ func adminRoutes(app *app.Application, r chi.Router) {
 		r.Get("/print/single-side-revenue",app.AdminHandler.HandleGetRevenueFromSingle_Sided_Prints)
 		r.Get("/print/double-side-count",app.AdminHandler.HandleGetDoubleSidePrintsCount)
 		r.Get("/print/single-side-count",app.AdminHandler.HandleGetSingleSidePrintsCount)
+		r.Get("/print/history-24h",app.AdminHandler.HandleFetchPrintHistoryFor24H)
 		r.Get("/print/revenue-24h",app.AdminHandler.HandleGetRevenueLast24Hours)
 		r.Get("/print/sheets-24h",app.AdminHandler.HandleGetSheetsPrintedLast24Hours)
 		r.Get("/print/color-sheets-24h",app.AdminHandler.HandleGetColorSheetsPrintedLast24Hours)//not working as expected
@@ -211,6 +212,6 @@ func adminRoutes(app *app.Application, r chi.Router) {
 		r.Get("/print/single-side-revenue-24h",app.AdminHandler.HandleGetLast24HoursRevenueFromSingle_Sided_Prints)
 		r.Get("/print/double-side-count-24h",app.AdminHandler.HandleGetTotalSheetsPrintedInLast24HoursByDouble_Sided_Prints)
 		r.Get("/print/single-side-count-24h",app.AdminHandler.HandleGetTotalSheetsPrintedInLast24HoursBySingle_Sided_Prints)
-	
+		r.Get("/print/paidjobs-24H",app.AdminHandler.HandleFetchPrintJobOnlyPaidInLast24H)
 	})
 }

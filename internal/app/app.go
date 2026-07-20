@@ -114,7 +114,7 @@ func NewApplication() (*Application, error) {
 		env.GetString("SUPER_ADMIN_EMAIL", ""), //this two needs to add to required env variables
 		env.GetString("SUPER_ADMIN_PASSWORD", ""),
 	)
-	adminservice := service.NewAdminRepo(filerepo, adminrepo, logger)
+	adminservice := service.NewAdminService(filerepo, adminrepo, logger)
 
 	//Handlers
 	userHandler := handler.NewUserHandler(userservice, logger)

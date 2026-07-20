@@ -11,11 +11,11 @@ import (
 )
 
 type AdminHandler struct {
-	AdminService *service.AdminRepo
+	AdminService *service.AdminService
 	logger       *slog.Logger
 }
 
-func NewAdminHandler(AdminService *service.AdminRepo, logger *slog.Logger) *AdminHandler {
+func NewAdminHandler(AdminService *service.AdminService, logger *slog.Logger) *AdminHandler {
 	return &AdminHandler{
 		AdminService: AdminService,
 		logger:       logger,
@@ -157,8 +157,7 @@ func (h *AdminHandler) HandleGetBlackAndWhiteSheetsPrintedLast24Hours(w http.Res
 	}
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"black_and_white_sheets_printed_last_24_hours": totalBWSheets})
-}	
-
+}
 
 func (h *AdminHandler) HandleGetTotalSheetsPrintedInLast24HoursByDouble_Sided_Prints(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
@@ -173,7 +172,6 @@ func (h *AdminHandler) HandleGetTotalSheetsPrintedInLast24HoursByDouble_Sided_Pr
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"total_sheets_printed_last_24_hours_by_double_sided_prints": totalSheets})
 }
-
 
 func (h *AdminHandler) HandleGetTotalSheetsPrintedInLast24HoursBySingle_Sided_Prints(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
@@ -202,7 +200,6 @@ func (h *AdminHandler) HandleGetLast24HoursRevenueFromDouble_Sided_Prints(w http
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"last_24_hours_revenue_from_double_sided_prints": revenue})
 }
-
 
 func (h *AdminHandler) HandleGetLast24HoursRevenueFromSingle_Sided_Prints(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
@@ -272,4 +269,31 @@ func (h *AdminHandler) HandleGetSingleSidePrintsCount(w http.ResponseWriter, r *
 	}
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"total_sheets_printed_by_single_sided_prints": totalSheets})
+}
+
+func (h *AdminHandler) HandleFetchPrintHistoryFor24H(w http.ResponseWriter,r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(),10*time.Second)
+	defer cancel()
+	h.logger.Info("HandleFetchPrintHistoryFor-24H")
+	
+	history,err := h.AdminService.AdminFetchPrintHistoryFor24H(ctx)
+
+	if err != nil {
+		utils.HandleError(w,h.logger,err)
+	}
+
+	utils.WriteJSON(w,http.StatusOK,utils.Envelope{"print_history":history})
+}
+
+func (h *AdminHandler) HandleFetchPrintJobOnlyPaidInLast24H(w http.ResponseWriter,r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(),10*time.Second)
+	defer cancel()
+
+	Job,err := h.AdminService.AdminFetchPrintJobsOnlyPaidInLast24H(ctx)
+
+	if err != nil{
+		utils.HandleError(w,h.logger,err)
+	}
+
+	utils.WriteJSON(w,http.StatusOK,utils.Envelope{"jobs":Job})
 }
