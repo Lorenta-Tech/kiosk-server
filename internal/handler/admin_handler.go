@@ -7,8 +7,20 @@ import (
 	"time"
 
 	"github.com/Lorenta-Tech/kiosk-server/internal/service"
+	"github.com/Lorenta-Tech/kiosk-server/pkg/apperror"
 	"github.com/Lorenta-Tech/kiosk-server/pkg/utils"
 )
+
+func reportDate(r *http.Request) (string, error) {
+	date, err := utils.ReadParam(r, "date")
+	if err != nil {
+		return "", apperror.BadRequest("invalid_date", "date must be in YYYY-MM-DD format")
+	}
+	if _, err := time.Parse(time.DateOnly, date); err != nil {
+		return "", apperror.BadRequest("invalid_date", "date must be in YYYY-MM-DD format")
+	}
+	return date, nil
+}
 
 type AdminHandler struct {
 	AdminService *service.AdminService
@@ -271,29 +283,121 @@ func (h *AdminHandler) HandleGetSingleSidePrintsCount(w http.ResponseWriter, r *
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"total_sheets_printed_by_single_sided_prints": totalSheets})
 }
 
-func (h *AdminHandler) HandleFetchPrintHistoryFor24H(w http.ResponseWriter,r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(),10*time.Second)
+func (h *AdminHandler) HandleFetchPrintHistoryFor24H(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 	h.logger.Info("HandleFetchPrintHistoryFor-24H")
-	
-	history,err := h.AdminService.AdminFetchPrintHistoryFor24H(ctx)
+
+	history, err := h.AdminService.AdminFetchPrintHistoryFor24H(ctx)
 
 	if err != nil {
-		utils.HandleError(w,h.logger,err)
+		utils.HandleError(w, h.logger, err)
+		return
 	}
 
-	utils.WriteJSON(w,http.StatusOK,utils.Envelope{"print_history":history})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"print_history": history})
 }
 
-func (h *AdminHandler) HandleFetchPrintJobOnlyPaidInLast24H(w http.ResponseWriter,r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(),10*time.Second)
+func (h *AdminHandler) HandleFetchPrintJobOnlyPaidInLast24H(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	Job,err := h.AdminService.AdminFetchPrintJobsOnlyPaidInLast24H(ctx)
+	Job, err := h.AdminService.AdminFetchPrintJobsOnlyPaidInLast24H(ctx)
 
-	if err != nil{
-		utils.HandleError(w,h.logger,err)
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
 	}
 
-	utils.WriteJSON(w,http.StatusOK,utils.Envelope{"jobs":Job})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"jobs": Job})
+}
+
+func (h *AdminHandler) HandleGetTotalSessionCountOfToday(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	total, err := h.AdminService.AdminGetTotalSessionCountOfToday(ctx)
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"total_sessions_today": total})
+}
+
+func (h *AdminHandler) HandleGetTodaysPaymentHistory(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	payments, err := h.AdminService.AdminGetTodaysPaymentHistory(ctx)
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"payments": payments})
+}
+
+func (h *AdminHandler) HandleGetPrintJobsForPricedStatus(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	jobs, err := h.AdminService.AdminGetPrintJobsForPricedStatus(ctx)
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"jobs": jobs})
+}
+
+func (h *AdminHandler) HandleGetRevenueForDate(w http.ResponseWriter, r *http.Request) {
+	date, err := reportDate(r)
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	revenue, err := h.AdminService.AdminGetRevenueForDate(ctx, date)
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"date": date, "total_revenue": revenue})
+}
+
+func (h *AdminHandler) HandleGetTotalSheetsPrintedForDate(w http.ResponseWriter, r *http.Request) {
+	date, err := reportDate(r)
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	totalSheets, err := h.AdminService.AdminGetTotalSheetsPrintedForDate(ctx, date)
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"date": date, "total_sheets_printed": totalSheets})
+}
+
+func (h *AdminHandler) HandleFetchPrintHistoryForDate(w http.ResponseWriter, r *http.Request) {
+	date, err := reportDate(r)
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	history, err := h.AdminService.AdminFetchPrintHistoryForDate(ctx, date)
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"date": date, "history": history})
 }

@@ -3,13 +3,14 @@ package routes
 import (
 	"net/http"
 	"time"
+
 	//"fmt"
 	"github.com/Lorenta-Tech/kiosk-server/internal/app"
 	"github.com/Lorenta-Tech/kiosk-server/internal/middlewares"
+	appjwt "github.com/Lorenta-Tech/kiosk-server/pkg/jwt"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	httpSwagger "github.com/swaggo/http-swagger"
-	appjwt "github.com/Lorenta-Tech/kiosk-server/pkg/jwt"
 )
 
 func SetupRoutes(app *app.Application) *chi.Mux {
@@ -46,7 +47,7 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 
 		// IMPORTANT
 		deptadminRoutes(app, r)
-        adminRoutes(app,r)
+		adminRoutes(app, r)
 	})
 
 	return r
@@ -63,11 +64,14 @@ func fileRoutes(app *app.Application, r chi.Router) {
 	r.Post("/print/jobs/token", app.FileHandler.HandleGetJobByToken)
 	r.Post("/print/jobs/error", app.FileHandler.HandleErrorRequestFromPrinter)
 	r.Post("/print/jobs/expire", app.FileHandler.HandleExpireSessionAfterPrinting)
+	r.Post("/upload/notes/init", app.FileHandler.HandleNotesCreateSessionRequest)
+	r.Post("/upload/notes/confirm", app.FileHandler.HandleNotesUploadConfirmRequest)
 	//r.Get("/admin/getprintjobs",app.FileHandler.HandleFetchPrintJobs)
 	r.Route("/files", func(r chi.Router) {
-		r.Use(middlewares.AuthMiddleware(app.JWTSecret,app.Logger))
+		r.Use(middlewares.AuthMiddleware(app.JWTSecret, app.Logger))
 		r.Post("/upload/init", app.FileHandler.HandleInitFileUpload)
 		r.Post("/upload/confirm", app.FileHandler.HandleConfirmFileUpload)
+
 		r.Get("/jobs/recent", app.FileHandler.HandleGetRecentPrintJobs)
 		r.Get("/jobs/active", app.FileHandler.HandleActivePrintJobs)
 		r.Get("/job/session/:session_id", app.FileHandler.HandleGetJobBySessionID)
@@ -76,7 +80,7 @@ func fileRoutes(app *app.Application, r chi.Router) {
 
 func paymentRoutes(app *app.Application, r chi.Router) {
 	r.Route("/payments", func(r chi.Router) {
-		r.Use(middlewares.AuthMiddleware(app.JWTSecret,app.Logger))
+		r.Use(middlewares.AuthMiddleware(app.JWTSecret, app.Logger))
 		r.Post("/create", app.PaymentHandler.HandleCreateOrder)
 		r.Get("/status/{session_id}", app.PaymentHandler.HandleGetPaymentStatus)
 	})
@@ -155,7 +159,7 @@ func deptadminRoutes(app *app.Application, r chi.Router) {
 		SuperAdmin: app.JWTSecret,
 	}
 
-	r.Route("/deptadmin", func(r chi.Router) {  //getting changed need to inform frontend team
+	r.Route("/deptadmin", func(r chi.Router) { //getting changed need to inform frontend team
 
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/super/login", app.DeptAdminHandler.HandleSuperAdminLogin)
@@ -190,28 +194,33 @@ func deptadminRoutes(app *app.Application, r chi.Router) {
 		})
 	})
 }
-    
-	
+
 func adminRoutes(app *app.Application, r chi.Router) {
 	r.Route("/admin", func(r chi.Router) {
 		r.Get("/print/history", app.AdminHandler.HandleFetchPrintHistory)
 		r.Get("/print/revenue", app.AdminHandler.HandleGetTotalRevenue)
-		r.Get("/print/totalsheetsprinted",app.AdminHandler.HandleGetTotalSheetsPrinted)
-		r.Get("/print/colorsheets",app.AdminHandler.HandleGetTotalColorSheetsPrinted)
-		r.Get("/print/blackandwhite",app.AdminHandler.HandleGetTotalBlackAndWhiteSheetsPrinted)
-		r.Get("/print/double-side-revenue",app.AdminHandler.HandleGetRevenueFromDouble_Sided_Prints)
-		r.Get("/print/single-side-revenue",app.AdminHandler.HandleGetRevenueFromSingle_Sided_Prints)
-		r.Get("/print/double-side-count",app.AdminHandler.HandleGetDoubleSidePrintsCount)
-		r.Get("/print/single-side-count",app.AdminHandler.HandleGetSingleSidePrintsCount)
-		r.Get("/print/history-24h",app.AdminHandler.HandleFetchPrintHistoryFor24H)
-		r.Get("/print/revenue-24h",app.AdminHandler.HandleGetRevenueLast24Hours)
-		r.Get("/print/sheets-24h",app.AdminHandler.HandleGetSheetsPrintedLast24Hours)
-		r.Get("/print/color-sheets-24h",app.AdminHandler.HandleGetColorSheetsPrintedLast24Hours)//not working as expected
-		r.Get("/print/black-and-white-sheets-24h",app.AdminHandler.HandleGetBlackAndWhiteSheetsPrintedLast24Hours)//not working as expected
-		r.Get("/print/double-side-revenue-24h",app.AdminHandler.HandleGetLast24HoursRevenueFromDouble_Sided_Prints)
-		r.Get("/print/single-side-revenue-24h",app.AdminHandler.HandleGetLast24HoursRevenueFromSingle_Sided_Prints)
-		r.Get("/print/double-side-count-24h",app.AdminHandler.HandleGetTotalSheetsPrintedInLast24HoursByDouble_Sided_Prints)
-		r.Get("/print/single-side-count-24h",app.AdminHandler.HandleGetTotalSheetsPrintedInLast24HoursBySingle_Sided_Prints)
-		r.Get("/print/paidjobs-24H",app.AdminHandler.HandleFetchPrintJobOnlyPaidInLast24H)
+		r.Get("/print/totalsheetsprinted", app.AdminHandler.HandleGetTotalSheetsPrinted)
+		r.Get("/print/colorsheets", app.AdminHandler.HandleGetTotalColorSheetsPrinted)
+		r.Get("/print/blackandwhite", app.AdminHandler.HandleGetTotalBlackAndWhiteSheetsPrinted)
+		r.Get("/print/double-side-revenue", app.AdminHandler.HandleGetRevenueFromDouble_Sided_Prints)
+		r.Get("/print/single-side-revenue", app.AdminHandler.HandleGetRevenueFromSingle_Sided_Prints)
+		r.Get("/print/double-side-count", app.AdminHandler.HandleGetDoubleSidePrintsCount)
+		r.Get("/print/single-side-count", app.AdminHandler.HandleGetSingleSidePrintsCount)
+		r.Get("/print/history-24h", app.AdminHandler.HandleFetchPrintHistoryFor24H)
+		r.Get("/print/revenue-24h", app.AdminHandler.HandleGetRevenueLast24Hours)
+		r.Get("/print/sheets-24h", app.AdminHandler.HandleGetSheetsPrintedLast24Hours)
+		r.Get("/print/color-sheets-24h", app.AdminHandler.HandleGetColorSheetsPrintedLast24Hours)                   //not working as expected
+		r.Get("/print/black-and-white-sheets-24h", app.AdminHandler.HandleGetBlackAndWhiteSheetsPrintedLast24Hours) //not working as expected
+		r.Get("/print/double-side-revenue-24h", app.AdminHandler.HandleGetLast24HoursRevenueFromDouble_Sided_Prints)
+		r.Get("/print/single-side-revenue-24h", app.AdminHandler.HandleGetLast24HoursRevenueFromSingle_Sided_Prints)
+		r.Get("/print/double-side-count-24h", app.AdminHandler.HandleGetTotalSheetsPrintedInLast24HoursByDouble_Sided_Prints)
+		r.Get("/print/single-side-count-24h", app.AdminHandler.HandleGetTotalSheetsPrintedInLast24HoursBySingle_Sided_Prints)
+		r.Get("/print/paidjobs-24H", app.AdminHandler.HandleFetchPrintJobOnlyPaidInLast24H)
+		r.Get("/print/session-count-today", app.AdminHandler.HandleGetTotalSessionCountOfToday)
+		r.Get("/payments/history-today", app.AdminHandler.HandleGetTodaysPaymentHistory)
+		r.Get("/print/priced-jobs-today", app.AdminHandler.HandleGetPrintJobsForPricedStatus)
+		r.Get("/print/revenue/{date}", app.AdminHandler.HandleGetRevenueForDate)
+		r.Get("/print/sheets/{date}", app.AdminHandler.HandleGetTotalSheetsPrintedForDate)
+		r.Get("/print/history/{date}", app.AdminHandler.HandleFetchPrintHistoryForDate)
 	})
 }

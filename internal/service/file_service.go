@@ -732,7 +732,9 @@ func (fs *FileService) NotesUploadConfirmRequest(ctx context.Context, req models
 			return models.ConfirmNotesUploadResponse{}, err
 		}
 
-		exists, err := fs.s3.FileExists(ctx, dbNotes.UploadedBy)
+		fs.logger.Debug("Debugging the file Key", "file_key", dbNotes.FileKey)
+
+		exists, err := fs.s3.FileExists(ctx, dbNotes.FileKey)
 		if err != nil {
 			fs.logger.Error("s3 existence check failed",
 				"session_id", req.SessionID,

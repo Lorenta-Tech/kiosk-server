@@ -25,11 +25,15 @@ func WriteJSON(w http.ResponseWriter, status int, data Envelope) error {
 }
 
 func ReadParamID(r *http.Request, paramName string) (string, error) {
-	id := chi.URLParam(r, paramName)
-	if id == "" {
+	return ReadParam(r, paramName)
+}
+
+func ReadParam(r *http.Request, paramName string) (string, error) {
+	value := chi.URLParam(r, paramName)
+	if value == "" {
 		return "", errors.New("invalid url param")
 	}
-	return id, nil
+	return value, nil
 }
 
 func DecodeJSON[T any](r *http.Request) (T, error) {

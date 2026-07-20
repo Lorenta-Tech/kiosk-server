@@ -109,12 +109,42 @@ func (s *AdminService) AdminGetTotalSheetsPrintedBySingle_Sided_Prints(ctx conte
 	return s.adminrepo.AdminGetTotalSheetsPrintedBySingle_Sided_Prints(ctx)
 }
 
-func (s *AdminService) AdminFetchPrintHistoryFor24H(ctx context.Context)([]models.PrintJob,error){
+func (s *AdminService) AdminFetchPrintHistoryFor24H(ctx context.Context) ([]models.PrintJob, error) {
 	s.logger.Info("AdminFetchPrintHistoryfor-24H")
 	return s.adminrepo.AdminFetchPrintHistoryfor24H(ctx)
 }
 
-func (s *AdminService) AdminFetchPrintJobsOnlyPaidInLast24H(ctx context.Context)([]models.PrintJob,error){
+func (s *AdminService) AdminFetchPrintJobsOnlyPaidInLast24H(ctx context.Context) ([]models.PrintJob, error) {
 	s.logger.Info("AdminFetchPrintJobOnlyPaidInLast24H")
 	return s.adminrepo.AdminFetchPrintJobsOnlyPaidInLast24H(ctx)
+}
+
+func (s *AdminService) AdminGetTotalSessionCountOfToday(ctx context.Context) (int, error) {
+	s.logger.Info("AdminGetTotalSessionCountOfToday called")
+	return s.adminrepo.AdminGetTotalSessionCountOfToday(ctx)
+}
+
+func (s *AdminService) AdminGetTodaysPaymentHistory(ctx context.Context) ([]models.Payment, error) {
+	s.logger.Info("AdminGetTodaysPaymentHistory called")
+	return s.adminrepo.AdminGetTodaysPaymentHistory(ctx)
+}
+
+func (s *AdminService) AdminGetPrintJobsForPricedStatus(ctx context.Context) ([]models.PrintJob, error) {
+	s.logger.Info("AdminGetPrintJobsForPricedStatus called")
+	return s.adminrepo.AdminGetPrintJobsForPricedStatus(ctx)
+}
+
+func (s *AdminService) AdminGetRevenueForDate(ctx context.Context, date string) (float64, error) {
+	s.logger.Info("AdminGetRevenueForDate called", "date", date)
+	return s.adminrepo.AdminGetRevenueForDate(ctx, date)
+}
+
+func (s *AdminService) AdminGetTotalSheetsPrintedForDate(ctx context.Context, date string) (int, error) {
+	s.logger.Info("AdminGetTotalSheetsPrintedForDate called", "date", date)
+	return s.adminrepo.AdminGetTotalSheetsPrintedForDate(ctx, date)
+}
+
+func (s *AdminService) AdminFetchPrintHistoryForDate(ctx context.Context, date string) ([]models.PrintJob, error) {
+	s.logger.Info("AdminFetchPrintHistoryForDate called", "date", date)
+	return s.adminrepo.AdminFetchPrintHistoryForDate(ctx, date)
 }
