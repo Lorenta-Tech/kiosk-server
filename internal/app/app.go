@@ -109,6 +109,7 @@ func NewApplication() (*Application, error) {
 	notesservice := service.NewNotesService(notesrepo, filerepo, pgdb, s3Client, logger)
 	deptAdminService := service.NewDeptAdminService(
 		deptadminRepo,
+		notesrepo,
 		logger,
 		jwtSecret,
 		env.GetString("SUPER_ADMIN_EMAIL", ""), //this two needs to add to required env variables
