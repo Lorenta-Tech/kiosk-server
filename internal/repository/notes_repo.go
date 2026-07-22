@@ -17,6 +17,7 @@ type NotesRepo interface {
 	WithTx(tx *sql.Tx) NotesRepo
 
 	// Branch
+	CreateBranch(ctx context.Context, branch models.Branch) error // new added 
 	GetActiveBranches(ctx context.Context) ([]models.Branch, error)
 	GetBranchByID(ctx context.Context, branchID string) (models.Branch, error)
 
@@ -65,6 +66,39 @@ func (r *PostgresNotesRepo) WithTx(tx *sql.Tx) NotesRepo {
 // ================================================================
 // Branch
 // ================================================================
+
+// new create branch function 
+func (r *PostgresNotesRepo) CreateBranch(
+	ctx context.Context,
+	branch models.Branch,
+) error {
+
+	const query = `
+		INSERT INTO branches (
+			id,
+			name,
+			code
+		)
+		VALUES ($1, $2, $3)
+	`
+
+	_, err := r.db.ExecContext(
+		ctx,
+		query,
+		branch.ID,
+		branch.Name,
+		branch.Code,
+	)
+
+	if err != nil {
+		return apperror.Internal(
+			"failed to create branch",
+			fmt.Errorf("repository.CreateBranch: %w", err),
+		)
+	}
+
+	return nil
+}
 
 func (r *PostgresNotesRepo) GetActiveBranches(ctx context.Context) ([]models.Branch, error) {
 	const query = `
