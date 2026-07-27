@@ -25,6 +25,12 @@ type RegisterDeptAdminRequest struct {
 	BranchID string `json:"branch_id" validate:"required,uuid"`
 }
 
+// new branch struct
+type CreateBranchRequest struct {
+	Name string `json:"name" validate:"required,max=150"`
+	Code string `json:"code" validate:"required,max=20"`
+}
+
 // ================================================================
 // Dept Admin Request Models
 // ================================================================
@@ -55,6 +61,18 @@ type RegisterDeptAdminResponse struct {
 	Name     string `json:"name"`
 	Email    string `json:"email"`
 	BranchID string `json:"branch_id"`
+}
+
+type CreateBranchResponse struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Code string `json:"code"`
+}
+
+type BranchListResponse struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Code string `json:"code"`
 }
 
 // ================================================================

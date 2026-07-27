@@ -210,3 +210,85 @@ func (h *DeptAdminHandler) HandleListDeptAdmins(
 		},
 	)
 }
+
+// new flow
+
+func (h *DeptAdminHandler) HandleCreateBranch(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+
+	ctx, cancel := context.WithTimeout(
+		r.Context(),
+		10*time.Second,
+	)
+	defer cancel()
+
+	req, err := utils.DecodeJSON[models.CreateBranchRequest](r)
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+
+	if err := validator.Validate(req); err != nil {
+		utils.HandleError(
+			w,
+			h.logger,
+			apperror.BadRequest(
+				"validation_error",
+				err.Error(),
+			),
+		)
+		return
+	}
+
+	resp, err := h.deptAdminService.CreateBranch(
+		ctx,
+		req,
+	)
+
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+
+	utils.WriteJSON(
+		w,
+		http.StatusCreated,
+		utils.Envelope{
+			"data": resp,
+		},
+	)
+}
+
+// ---------------
+
+func (h *DeptAdminHandler) HandleListBranches(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+
+	ctx, cancel := context.WithTimeout(
+		r.Context(),
+		10*time.Second,
+	)
+	defer cancel()
+
+	resp, err := h.deptAdminService.ListBranches(
+		ctx,
+	)
+
+	if err != nil {
+		utils.HandleError(w, h.logger, err)
+		return
+	}
+
+	utils.WriteJSON(
+		w,
+		http.StatusOK,
+		utils.Envelope{
+			"data": resp,
+		},
+	)
+}
+
