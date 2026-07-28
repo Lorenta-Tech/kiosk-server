@@ -402,7 +402,7 @@ func (r *PostgresAdminRepo) AdminGetBlackAndWhiteSheetsPrintedLast24Hours(ctx co
 		JOIN upload_sessions us ON us.id = uf.session_id
 		WHERE us.status = 'completed'
 		  AND uf.printing_mode = 'monochromatic'
-		    AND (created_at AT TIME ZONE 'Asia/Kolkata')::date =
+		    AND (uf.created_at AT TIME ZONE 'Asia/Kolkata')::date =
             (NOW() AT TIME ZONE 'Asia/Kolkata')::date
 	`
 

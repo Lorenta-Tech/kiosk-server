@@ -218,7 +218,7 @@ func adminRoutes(app *app.Application, r chi.Router) {
 		r.Get("/print/single-side-revenue-24h", app.AdminHandler.HandleGetLast24HoursRevenueFromSingle_Sided_Prints)
 		r.Get("/print/double-side-count-24h", app.AdminHandler.HandleGetTotalSheetsPrintedInLast24HoursByDouble_Sided_Prints)
 		r.Get("/print/single-side-count-24h", app.AdminHandler.HandleGetTotalSheetsPrintedInLast24HoursBySingle_Sided_Prints)
-		r.Get("/print/paidjobs-24H", app.AdminHandler.HandleFetchPrintJobOnlyPaidInLast24H)
+		r.Get("/print/paidjobs-24h", app.AdminHandler.HandleFetchPrintJobOnlyPaidInLast24H)
 		r.Get("/print/session-count-today", app.AdminHandler.HandleGetTotalSessionCountOfToday)
 		r.Get("/payments/history-today", app.AdminHandler.HandleGetTodaysPaymentHistory)
 		r.Get("/print/priced-jobs-today", app.AdminHandler.HandleGetPrintJobsForPricedStatus)
