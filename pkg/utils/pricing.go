@@ -40,7 +40,7 @@ func CalculateFilePrice(
 	sheets = sheetsPerCopy * copies
 
 	// cost per printed side
-	costPerSide := rateFor(printingMode)
+	costPerSide := rateFor(printingMode,printingSide)
 
 	var totalSides int
 
@@ -128,8 +128,14 @@ func countSelectedPages(pageRanges []string, maxPages int) int {
 
 	return len(selected)
 }
+func rateFor(printingMode string, printingSide string) float64 {
+	// Special pricing:
+	// Single-side monochromatic = ₹2
+	if printingSide == "single_side" && printingMode == "monochromatic" {
+		return 2.00
+	}
 
-func rateFor(printingMode string) float64 {
+	// Normal rates
 	if rate, ok := rates[printingMode]; ok {
 		return rate
 	}

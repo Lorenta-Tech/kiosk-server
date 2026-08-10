@@ -379,7 +379,7 @@ func (r *PostgresAdminRepo) AdminGetColorSheetsPrintedLast24Hours(ctx context.Co
 		JOIN upload_sessions us ON us.id = uf.session_id
 		WHERE us.status = 'completed'
 		  AND uf.printing_mode = 'color'
-		    AND (created_at AT TIME ZONE 'Asia/Kolkata')::date =
+		    AND (us.created_at AT TIME ZONE 'Asia/Kolkata')::date =
             (NOW() AT TIME ZONE 'Asia/Kolkata')::date
 	`
 
@@ -661,7 +661,7 @@ func (r *PostgresAdminRepo) AdminFetchPrintHistoryfor24H(ctx context.Context) ([
 	const sessionsQuery = `
 	SELECT id, token, status, total_amount, total_sheets, created_at
 	FROM upload_sessions
-	WHERE status = 'completed'
+	WHERE status = ('completed','paid')
 	  AND (created_at AT TIME ZONE 'Asia/Kolkata')::date =
 	      (NOW() AT TIME ZONE 'Asia/Kolkata')::date
 	ORDER BY created_at DESC
