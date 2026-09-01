@@ -56,6 +56,7 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 func authRoutes(app *app.Application, r chi.Router) {
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/google", app.UserHandler.HandleGoogleAuth)
+		r.With(middlewares.AuthMiddleware(app.JWTSecret, app.Logger)).Get("/me", app.UserHandler.HandleMe)
 	})
 }
 

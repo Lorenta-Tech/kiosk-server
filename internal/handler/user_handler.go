@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Lorenta-Tech/kiosk-server/internal/middlewares"
 	"github.com/Lorenta-Tech/kiosk-server/internal/models"
 	"github.com/Lorenta-Tech/kiosk-server/internal/service"
 	"github.com/Lorenta-Tech/kiosk-server/internal/validator"
@@ -60,4 +61,26 @@ func (uh *UserHandler) HandleGoogleAuth(w http.ResponseWriter, r *http.Request) 
 	}
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
+}
+
+// HandleMe godoc
+//
+//	@Summary      Get the authenticated user
+//	@Description  Returns the user information encoded in a valid application JWT.
+//	@Tags         auth
+//	@Produce      json
+//	@Security     BearerAuth
+//	@Success      200  {object}  utils.Envelope
+//	@Failure      401  {object}  utils.Envelope
+//	@Router       /auth/me [get]
+func (uh *UserHandler) HandleMe(w http.ResponseWriter, r *http.Request) {
+	userID := middlewares.GetUserID(r.Context())
+	userEmail := middlewares.GetUserEmail(r.Context())
+	userName := middlewares.GetUserName(r.Context())
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": models.UserInfo{
+		ID:    userID,
+		Email: userEmail,
+		Name:  userName,
+	}})
 }
