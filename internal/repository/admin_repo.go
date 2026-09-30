@@ -661,7 +661,7 @@ func (r *PostgresAdminRepo) AdminFetchPrintHistoryfor24H(ctx context.Context) ([
 	const sessionsQuery = `
 	SELECT id, token, status, total_amount, total_sheets, created_at
 	FROM upload_sessions
-	WHERE status = ('completed','paid')
+	WHERE status IN ('completed','paid')
 	  AND (created_at AT TIME ZONE 'Asia/Kolkata')::date =
 	      (NOW() AT TIME ZONE 'Asia/Kolkata')::date
 	ORDER BY created_at DESC

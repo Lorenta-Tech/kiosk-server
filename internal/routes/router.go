@@ -170,8 +170,8 @@ func deptadminRoutes(app *app.Application, r chi.Router) {
 		r.Group(func(r chi.Router) {
 			r.Use(middlewares.RequireRole(secrets, app.Logger, appjwt.RoleSuperAdmin))
 			// Branch Management
-			r.Post("/branches",app.DeptAdminHandler.HandleCreateBranch)
-			r.Get("/branches",app.DeptAdminHandler.HandleListBranches)
+			r.Post("/branches", app.DeptAdminHandler.HandleCreateBranch)
+			r.Get("/branches", app.DeptAdminHandler.HandleListBranches)
 			r.Post("/dept-admins", app.DeptAdminHandler.HandleRegisterDeptAdmin)
 			r.Get("/dept-admins", app.DeptAdminHandler.HandleListDeptAdmins)
 		})
