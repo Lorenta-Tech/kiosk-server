@@ -102,6 +102,7 @@ Dept admins manage academic notes by branch, semester, subject, and module. Note
 │   ├── handler/
 │   ├── middlewares/
 │   ├── models/
+│   ├── monitor/
 │   ├── repository/
 │   ├── routes/
 │   ├── service/
@@ -158,9 +159,40 @@ RZP_KEY=your_razorpay_key
 RZP_SECRET=your_razorpay_secret
 RZP_WEBHOOK_SECRET=your_webhook_secret
 
+FROM_EMAIL=alerts@yourdomain.com
+RESEND_API_KEY=your_resend_api_key
+
 SUPER_ADMIN_EMAIL=super@example.com
 SUPER_ADMIN_PASSWORD=super_password
 ```
+
+### Database health monitoring
+
+The server runs a background monitor that pings the database on an interval and sends
+an email when it goes down or recovers. All settings are optional and have defaults.
+
+```env
+DB_MONITOR_ENABLED=true
+DB_MONITOR_EMAILS=suhasdeveloper07@gmail.com
+DB_MONITOR_INTERVAL_SECONDS=30
+DB_MONITOR_TIMEOUT_SECONDS=5
+DB_MONITOR_FAILURE_THRESHOLD=2
+DB_MONITOR_REPEAT_INTERVAL_MINUTES=30
+DB_MONITOR_NOTIFY_RECOVERY=true
+```
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `DB_MONITOR_ENABLED` | `true` | Turns the monitor on or off. |
+| `DB_MONITOR_EMAILS` | `suhasdeveloper07@gmail.com` | Comma-separated alert recipients. |
+| `DB_MONITOR_INTERVAL_SECONDS` | `30` | How often to ping the database. |
+| `DB_MONITOR_TIMEOUT_SECONDS` | `5` | Per-ping timeout. |
+| `DB_MONITOR_FAILURE_THRESHOLD` | `2` | Consecutive failures before alerting, so a single dropped ping does not page you. |
+| `DB_MONITOR_REPEAT_INTERVAL_MINUTES` | `30` | Re-sends the down alert at this cadence while the database is still down. Set to `0` to send only once. |
+| `DB_MONITOR_NOTIFY_RECOVERY` | `true` | Sends a second email once the database is reachable again. |
+
+Alerts are edge-triggered: one email when the outage starts, repeats only while it
+continues, and one more when it resolves. Logs are emitted for every state change.
 
 > The application uses these values during bootstrap and for service integrations such as S3, Razorpay, JWT, and mail.
 
@@ -218,6 +250,9 @@ These targets help manage PostgreSQL migrations using Goose.
 
 ## API highlights
 
+### Health
+- GET /health — returns 200 with `{"status":"healthy","db":"ok"}`, or 503 with `{"status":"unhealthy","db":"unreachable"}`
+
 ### Authentication
 - POST /auth/google
 
@@ -271,6 +306,7 @@ These targets help manage PostgreSQL migrations using Goose.
 
 - The server uses structured JSON logging for easier debugging.
 - Errors are returned in a consistent envelope format.
+- Background monitors live in `internal/monitor` and take their dependencies as interfaces, so they are unit testable without a live database or mail provider. Run them with `go test ./internal/monitor/...`.
 - Most write operations are protected by authentication and role-based middleware.
 - The project is designed to be extended with additional services or admin features without changing the core flow.
 

@@ -47,6 +47,7 @@ type DBMonitor struct {
 	failures  int
 	down      bool
 	downSince time.Time
+	lastAlert time.Time
 }
 
 func NewDBMonitor(db Pinger, mailer Mailer, logger *slog.Logger) *DBMonitor {
@@ -126,10 +127,10 @@ func (m *DBMonitor) run(ctx context.Context) {
 func (m *DBMonitor) probe(ctx context.Context) {
 	err := m.ping(ctx)
 
-	m.failures = 0
 	m.mu.Lock()
 	if err == nil {
 		wasDown := m.down
+		m.failures = 0
 		m.down = false
 		if wasDown {
 			downSince := m.downSince
@@ -197,7 +198,13 @@ func (m *DBMonitor) shouldRepeat() bool {
 	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return time.Since(m.downSince) >= m.config.RepeatInterval
+	return time.Since(m.lastAlert) >= m.config.RepeatInterval
+}
+
+func (m *DBMonitor) markAlerted() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.lastAlert = time.Now()
 }
 
 func (m *DBMonitor) ping(ctx context.Context) error {
@@ -225,6 +232,7 @@ func (m *DBMonitor) notifyDown(downSince time.Time, cause error, failures int) {
 		return
 	}
 
+	m.markAlerted()
 	m.logger.Info("db down email sent", "recipients", m.config.Recipients, "subject", template.Subject)
 }
 

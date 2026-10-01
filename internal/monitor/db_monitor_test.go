@@ -233,7 +233,7 @@ func TestRepeatAlertWhileStillDown(t *testing.T) {
 	p := &fakePinger{err: errors.New("connection refused")}
 	m := &fakeMailer{}
 	config := testConfig()
-	config.RepeatInterval = 20 * time.Millisecond
+	config.RepeatInterval = time.Hour
 	mon := newTestMonitor(p, m, config)
 
 	mon.probe(context.Background())
@@ -244,7 +244,11 @@ func TestRepeatAlertWhileStillDown(t *testing.T) {
 		t.Fatalf("expected 1 email before repeat interval elapses, got %d", m.count())
 	}
 
-	time.Sleep(25 * time.Millisecond)
+	mon.mu.Lock()
+	mon.downSince = time.Now().Add(-2 * time.Hour)
+	mon.lastAlert = time.Now().Add(-2 * time.Hour)
+	mon.mu.Unlock()
+
 	mon.probe(context.Background())
 
 	if m.count() != 2 {
