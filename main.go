@@ -40,6 +40,11 @@ func main() {
 
 	serverErr := make(chan error, 1)
 
+	//database health monitor
+	monitorCtx, stopMonitor := context.WithCancel(context.Background())
+	defer stopMonitor()
+	application.DBMonitor.Start(monitorCtx)
+
 	go func() {
 		application.Logger.Info("server listening", "port", port)
 		serverErr <- server.ListenAndServe()
@@ -53,6 +58,8 @@ func main() {
 		}
 	case sig := <-quit:
 		application.Logger.Info("shutting down", "signal", sig)
+
+		stopMonitor()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
 		defer cancel()

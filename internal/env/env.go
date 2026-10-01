@@ -39,3 +39,33 @@ func GetInt(key string, fallaback int) int {
 	}
 	return valAsInt
 }
+
+func GetBool(key string, fallback bool) bool {
+	val, ok := os.LookupEnv(key)
+	if !ok || val == "" {
+		return fallback
+	}
+	valAsBool, err := strconv.ParseBool(val)
+	if err != nil {
+		return fallback
+	}
+	return valAsBool
+}
+
+func GetList(key string, fallback []string) []string {
+	val, ok := os.LookupEnv(key)
+	if !ok || val == "" {
+		return fallback
+	}
+	parts := strings.Split(val, ",")
+	items := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			items = append(items, trimmed)
+		}
+	}
+	if len(items) == 0 {
+		return fallback
+	}
+	return items
+}

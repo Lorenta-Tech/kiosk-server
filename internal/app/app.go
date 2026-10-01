@@ -11,6 +11,7 @@ import (
 
 	"github.com/Lorenta-Tech/kiosk-server/internal/env"
 	"github.com/Lorenta-Tech/kiosk-server/internal/handler"
+	"github.com/Lorenta-Tech/kiosk-server/internal/monitor"
 	"github.com/Lorenta-Tech/kiosk-server/internal/repository"
 	"github.com/Lorenta-Tech/kiosk-server/internal/service"
 	"github.com/Lorenta-Tech/kiosk-server/pkg/db"
@@ -30,6 +31,7 @@ type Application struct {
 	AdminHandler     *handler.AdminHandler
 	NotesHandler     *handler.NotesHandler
 	DeptAdminHandler *handler.DeptAdminHandler
+	DBMonitor        *monitor.DBMonitor
 	JWTSecret        string
 }
 
@@ -125,6 +127,8 @@ func NewApplication() (*Application, error) {
 	deptAdminHandler := handler.NewDeptAdminHandler(deptAdminService, logger)
 	adminHandler := handler.NewAdminHandler(adminservice, logger)
 
+	dbMonitor := monitor.NewDBMonitor(pgdb, mailClient, logger)
+
 	app := &Application{
 		DB:               pgdb,
 		Logger:           logger,
@@ -136,6 +140,7 @@ func NewApplication() (*Application, error) {
 		AdminHandler:     adminHandler,
 		NotesHandler:     notesHandler,
 		DeptAdminHandler: deptAdminHandler,
+		DBMonitor:        dbMonitor,
 	}
 
 	return app, nil
