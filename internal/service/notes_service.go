@@ -7,7 +7,6 @@ import (
 	"log"
 	"log/slog"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -670,20 +669,6 @@ func (ns *NotesService) NotesPrintInit(
 
 	// 2. Build session
 	sessionID := uuid.NewString()
-	tokenInt, err := generateToken()
-	if err != nil {
-		return models.InitUploadResponse{}, apperror.Internal("failed to generate session token", err)
-	}
-	tokenStr := strconv.Itoa(tokenInt)
-
-	session := models.UploadSession{
-		ID:        sessionID,
-		UserID:    userID,
-		UserEmail: userEmail,
-		Status:    "created",
-		Token:     tokenStr,
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
-	}
 
 	// 3. Build upload_files reusing note S3 keys directly
 	var totalAmount float64
@@ -723,33 +708,24 @@ func (ns *NotesService) NotesPrintInit(
 		})
 	}
 
-	// 4. Persist session + files + price in one transaction
-	tx, err := ns.db.BeginTx(ctx, nil)
-	if err != nil {
-		return models.InitUploadResponse{}, apperror.Internal("failed to begin transaction", err)
+	// 4. Persist session + files + price in one transaction. upload_sessions.token is
+	// unique, so the whole transaction is retried with a new token on a collision.
+	attempt := printSessionAttempt{
+		userID:      userID,
+		userEmail:   userEmail,
+		dbFiles:     dbFiles,
+		totalAmount: totalAmount,
+		totalSheets: totalSheets,
 	}
-	defer tx.Rollback()
 
-	txRepo := ns.filerepo.WithTx(tx)
-
-	if err := txRepo.CreateSession(ctx, session); err != nil {
-		ns.logger.Error("failed to create print session", "session_id", sessionID, "error", err)
+	var session models.UploadSession
+	if _, err := withUniqueSessionToken(ctx, ns.logger, func(ctx context.Context, token int) error {
+		attempt.token = token
+		var err error
+		session, err = ns.persistPrintSession(ctx, sessionID, attempt)
+		return err
+	}); err != nil {
 		return models.InitUploadResponse{}, err
-	}
-
-	if err := txRepo.CreateFiles(ctx, dbFiles); err != nil {
-		ns.logger.Error("failed to create print session files", "session_id", sessionID, "error", err)
-		return models.InitUploadResponse{}, err
-	}
-
-	// Price is fully known at init time — skip the confirm step entirely
-	if err := txRepo.UpdateSessionPriced(ctx, sessionID, totalAmount, totalSheets); err != nil {
-		ns.logger.Error("failed to price session", "session_id", sessionID, "error", err)
-		return models.InitUploadResponse{}, err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return models.InitUploadResponse{}, apperror.Internal("failed to commit transaction", err)
 	}
 
 	ns.logger.Info("notes print init completed",
@@ -762,10 +738,70 @@ func (ns *NotesService) NotesPrintInit(
 
 	return models.InitUploadResponse{
 		SessionID: sessionID,
-		Token:     tokenInt,
+		Token:     attempt.token,
 		ExpiresAt: session.ExpiresAt,
 		Files:     responseFiles,
 	}, nil
+}
+
+// printSessionAttempt carries everything one transaction of NotesPrintInit needs. The
+// token is filled in per attempt, since it is regenerated on a collision.
+type printSessionAttempt struct {
+	userID      string
+	userEmail   string
+	token       int
+	dbFiles     []models.UploadFile
+	totalAmount float64
+	totalSheets int
+}
+
+// persistPrintSession writes the session, its files and its price in one transaction.
+// It must be retried with a fresh token when the token is already taken, so each
+// attempt needs its own transaction.
+func (ns *NotesService) persistPrintSession(
+	ctx context.Context,
+	sessionID string,
+	attempt printSessionAttempt,
+) (models.UploadSession, error) {
+
+	session := models.UploadSession{
+		ID:        sessionID,
+		UserID:    attempt.userID,
+		UserEmail: attempt.userEmail,
+		Status:    "created",
+		Token:     sessionTokenStr(attempt.token),
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+	}
+
+	tx, err := ns.db.BeginTx(ctx, nil)
+	if err != nil {
+		return models.UploadSession{}, apperror.Internal("failed to begin transaction", err)
+	}
+	defer tx.Rollback()
+
+	txRepo := ns.filerepo.WithTx(tx)
+
+	if err := txRepo.CreateSession(ctx, session); err != nil {
+		ns.logger.Error("failed to create print session", "session_id", sessionID, "error", err)
+		return models.UploadSession{}, err
+	}
+
+	if err := txRepo.CreateFiles(ctx, attempt.dbFiles); err != nil {
+		ns.logger.Error("failed to create print session files", "session_id", sessionID, "error", err)
+		return models.UploadSession{}, err
+	}
+
+	// Price is fully known at init time — skip the confirm step entirely
+	if err := txRepo.UpdateSessionPriced(ctx, sessionID, attempt.totalAmount, attempt.totalSheets); err != nil {
+		ns.logger.Error("failed to price session", "session_id", sessionID, "error", err)
+		return models.UploadSession{}, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return models.UploadSession{}, apperror.Internal("failed to commit transaction", err)
+	}
+
+	return session, nil
 }
 
 // ================================================================

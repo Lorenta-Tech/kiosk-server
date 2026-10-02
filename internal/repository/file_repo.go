@@ -3,10 +3,12 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/Lorenta-Tech/kiosk-server/internal/models"
 	"github.com/Lorenta-Tech/kiosk-server/pkg/apperror"
+	"github.com/jackc/pgconn"
 	"github.com/lib/pq"
 )
 
@@ -60,6 +62,29 @@ func (r *PostgresFileRepo) WithTx(tx *sql.Tx) FileRepo {
 }
 
 // Init
+
+// sessionTokenConstraint is the name of the unique index backing upload_sessions.token
+// (see migrations/20261002141530_unique_upload_session_token.sql).opencode -s ses_f030e4473ffe0O01AwKTLuIRVf
+const sessionTokenConstraint = "upload_sessions_token_key"
+
+// pgUniqueViolation is the SQLSTATE Postgres raises when a unique index rejects a write.
+const pgUniqueViolation = "23505"
+
+// ErrSessionTokenTaken reports that upload_sessions.token is already used by another
+// session. Callers detect it with errors.Is and are expected to retry the whole write
+// with a newly generated token.
+var ErrSessionTokenTaken = errors.New("upload session token already taken")
+
+// isUniqueViolation reports whether err is a Postgres unique_violation raised by the
+// given constraint.
+func isUniqueViolation(err error, constraint string) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	return pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == constraint
+}
+
 func (r *PostgresFileRepo) CreateSession(ctx context.Context, session models.UploadSession) error {
 	const query = `
 		INSERT INTO upload_sessions (id, user_id, user_email, status, token, expires_at)
@@ -74,6 +99,15 @@ func (r *PostgresFileRepo) CreateSession(ctx context.Context, session models.Upl
 		session.ExpiresAt,
 	)
 	if err != nil {
+		// Another session already owns this token — surface it so the caller can retry
+		// with a fresh one instead of failing the whole request.
+		if isUniqueViolation(err, sessionTokenConstraint) {
+			return apperror.Internal(
+				"failed to create upload session",
+				fmt.Errorf("repository.CreateSession: %w",
+					errors.Join(ErrSessionTokenTaken, err)),
+			)
+		}
 		return apperror.Internal(
 			"failed to create upload session",
 			fmt.Errorf("repository.CreateSession: %w", err),
@@ -492,4 +526,3 @@ func (r *PostgresFileRepo) GetFinalKeyBySessionID(ctx context.Context, sessionID
 	}
 	return finalKey, nil
 }
-

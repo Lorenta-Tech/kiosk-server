@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/big"
@@ -20,6 +21,16 @@ import (
 )
 
 const defaultRecentJobsLimit = 10
+
+// A session token is exactly 6 digits (100000–999999) and must be unique across every
+// session, so a colliding token is resolved by retrying with a freshly generated one.
+const (
+	sessionTokenDigits       = 6
+	sessionTokenMin          = 100000
+	sessionTokenMax          = 999999
+	sessionTokenMaxAttempts  = 8
+	sessionTokenRetryBackoff = 2 * time.Millisecond
+)
 
 type FileService struct {
 	filerepo   repository.FileRepo
@@ -56,6 +67,41 @@ func (fs *FileService) InitUpload(
 		"request_payload", req,
 	)
 
+	// upload_sessions.token is unique, so the whole session transaction is retried with
+	// a newly generated token whenever the generated one is already in use.
+	var resp models.InitUploadResponse
+	if _, err := withUniqueSessionToken(ctx, fs.logger, func(ctx context.Context, token int) error {
+		var err error
+		resp, err = fs.initUploadWithToken(ctx, userID, userEmail, req, token)
+		return err
+	}); err != nil {
+		return models.InitUploadResponse{}, err
+	}
+
+	return resp, nil
+}
+
+// initUploadWithToken creates the session and its files using the given token inside a
+// single transaction. It must be retried with a fresh token when the token is taken.
+func (fs *FileService) initUploadWithToken(
+	ctx context.Context,
+	userID string,
+	userEmail string,
+	req models.InitUploadRequest,
+	token int,
+) (models.InitUploadResponse, error) {
+
+	sessionID := uuid.NewString()
+
+	session := models.UploadSession{
+		ID:        sessionID,
+		UserID:    userID,
+		UserEmail: userEmail,
+		Status:    "created",
+		Token:     sessionTokenStr(token),
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+	}
+
 	tx, err := fs.db.BeginTx(ctx, nil)
 	if err != nil {
 		return models.InitUploadResponse{}, apperror.Internal("failed to begin transaction", err)
@@ -63,24 +109,6 @@ func (fs *FileService) InitUpload(
 	defer tx.Rollback()
 
 	txRepo := fs.filerepo.WithTx(tx)
-
-	sessionID := uuid.NewString()
-
-	// Generate 6-digit token and store as string in DB (VARCHAR column)
-	tokenInt, err := generateToken()
-	if err != nil {
-		return models.InitUploadResponse{}, apperror.Internal("failed to generate session token", err)
-	}
-	tokenStr := strconv.Itoa(tokenInt)
-
-	session := models.UploadSession{
-		ID:        sessionID,
-		UserID:    userID,
-		UserEmail: userEmail,
-		Status:    "created",
-		Token:     tokenStr,
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
-	}
 
 	if err := txRepo.CreateSession(ctx, session); err != nil {
 		return models.InitUploadResponse{}, err
@@ -143,7 +171,7 @@ func (fs *FileService) InitUpload(
 
 	return models.InitUploadResponse{
 		SessionID: sessionID,
-		Token:     tokenInt, // return as int so frontend shows 6-digit number cleanly
+		Token:     token, // return as int so frontend shows 6-digit number cleanly
 		ExpiresAt: session.ExpiresAt,
 		Files:     responseFiles,
 	}, nil
@@ -655,23 +683,21 @@ func (fs *FileService) NotesCreateSessionRequest(ctx context.Context, req models
 
 	sessionID := uuid.NewString()
 
-	token, err := generateToken()
+	// Single statement, so a rejected insert leaves nothing behind — retrying with a
+	// new token is all that is needed to resolve a collision.
+	var session models.UploadSession
+	token, err := withUniqueSessionToken(ctx, fs.logger, func(ctx context.Context, token int) error {
+		session = models.UploadSession{
+			ID:        sessionID,
+			UserID:    userID,
+			UserEmail: userEmail,
+			Status:    "created",
+			Token:     sessionTokenStr(token),
+			ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+		}
+		return fs.filerepo.CreateSession(ctx, session)
+	})
 	if err != nil {
-		return models.NotesUploadCreateSessionResponse{}, apperror.Internal("failed to generate session token", err)
-	}
-
-	tokenStr := strconv.Itoa(token)
-
-	session := models.UploadSession{
-		ID:        sessionID,
-		UserID:    userID,
-		UserEmail: userEmail,
-		Status:    "created",
-		Token:     tokenStr,
-		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
-	}
-
-	if err := fs.filerepo.CreateSession(ctx, session); err != nil {
 		return models.NotesUploadCreateSessionResponse{}, err
 	}
 
@@ -909,11 +935,62 @@ func tokenStatusMessage(status string) string {
 
 // generateToken returns a cryptographically random 6-digit integer (100000–999999).
 func generateToken() (int, error) {
-	n, err := rand.Int(rand.Reader, big.NewInt(900000))
+	n, err := rand.Int(rand.Reader, big.NewInt(sessionTokenMax-sessionTokenMin+1))
 	if err != nil {
 		return 0, err
 	}
-	return int(n.Int64()) + 100000, nil
+	return int(n.Int64()) + sessionTokenMin, nil
+}
+
+// sessionTokenStr renders a token as a zero padded 6-digit string for the
+// upload_sessions.token column.
+func sessionTokenStr(token int) string {
+	return fmt.Sprintf("%0*d", sessionTokenDigits, token)
+}
+
+// withUniqueSessionToken generates a 6-digit token and hands it to create, returning the
+// token of the attempt that succeeded. When that token is already used by another
+// session (repository.ErrSessionTokenTaken) the whole call is retried with a new token,
+// because a rejected insert aborts the surrounding transaction — every attempt needs
+// its own. Any other error is returned as is.
+func withUniqueSessionToken(
+	ctx context.Context,
+	logger *slog.Logger,
+	create func(ctx context.Context, token int) error,
+) (int, error) {
+	var lastErr error
+
+	for attempt := 1; attempt <= sessionTokenMaxAttempts; attempt++ {
+		token, err := generateToken()
+		if err != nil {
+			return 0, apperror.Internal("failed to generate session token", err)
+		}
+
+		lastErr = create(ctx, token)
+		if lastErr == nil {
+			return token, nil
+		}
+		if !errors.Is(lastErr, repository.ErrSessionTokenTaken) {
+			return 0, lastErr
+		}
+
+		logger.Warn("session token already in use, retrying with a new token",
+			"token", sessionTokenStr(token),
+			"attempt", attempt,
+			"max_attempts", sessionTokenMaxAttempts,
+			"cause", lastErr,
+		)
+
+		// A token only collides when the table is dense, so back off briefly to let
+		// concurrent uploads spread out instead of racing for the same token again.
+		select {
+		case <-ctx.Done():
+			return 0, apperror.Internal("failed to allocate a unique session token", ctx.Err())
+		case <-time.After(time.Duration(attempt) * sessionTokenRetryBackoff):
+		}
+	}
+
+	return 0, apperror.Internal("failed to allocate a unique session token", lastErr)
 }
 
 // func safeString(v *string) string {

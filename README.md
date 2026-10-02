@@ -56,7 +56,7 @@ A user logs in through Google OAuth at /auth/google. The server verifies the Goo
 
 ### 2. File upload session
 When a user starts uploading files:
-1. The server creates an upload session and generates a 6-digit token.
+1. The server creates an upload session and generates a 6-digit token that is unique across all sessions. If the generated token is already taken, the whole session transaction is retried with a new one.
 2. It returns presigned S3 upload URLs for each file.
 3. Files are initially stored in a staging area in S3.
 
