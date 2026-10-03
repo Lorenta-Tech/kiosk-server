@@ -54,15 +54,10 @@ func (fh *FileHandler) HandleInitFileUpload(w http.ResponseWriter, r *http.Reque
 		utils.HandleError(w, fh.logger, apperror.BadRequest("validation_error", err.Error()))
 		return
 	}
-
-	// TODO: replace with auth middleware values
 	userID := r.Context().Value(middlewares.ContextUserID).(string)
 	userEmail := r.Context().Value(middlewares.ContextUserEmail).(string)
 	// userID := "8473e7f9-2c72-4baf-b861-cd8238b15af6"
 	// userEmail := "hardcoded@email.com"
-
-	fh.logger.Info("USERID", "userId:", userID)
-	fh.logger.Info("USEREMAIL", "userEmail:", userEmail)
 
 	resp, err := fh.fileservice.InitUpload(ctx, userID, userEmail, req)
 	if err != nil {
@@ -315,10 +310,10 @@ func (fh *FileHandler) HandleNotesCreateSessionRequest(w http.ResponseWriter, r 
 		return
 	}
 
-	 userID := "8473e7f9-2c72-4baf-b861-cd8238b15af6"
-	 userEmail := "hardcoded@email.com"
+	userID := "8473e7f9-2c72-4baf-b861-cd8238b15af6"
+	userEmail := "hardcoded@email.com"
 
-	resp, err := fh.fileservice.NotesCreateSessionRequest(ctx, req,userID,userEmail)
+	resp, err := fh.fileservice.NotesCreateSessionRequest(ctx, req, userID, userEmail)
 	if err != nil {
 		utils.HandleError(w, fh.logger, err)
 		return
@@ -328,13 +323,13 @@ func (fh *FileHandler) HandleNotesCreateSessionRequest(w http.ResponseWriter, r 
 }
 
 func (fh *FileHandler) HandleNotesUploadConfirmRequest(w http.ResponseWriter, r *http.Request) {
-	ctx,cancel := context.WithTimeout(r.Context(),10*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
-	req,err := utils.DecodeJSON[models.NotesUploadConfirmSessionRequest](r)
+	req, err := utils.DecodeJSON[models.NotesUploadConfirmSessionRequest](r)
 
 	if err != nil {
-		utils.HandleError(w,fh.logger,err)
+		utils.HandleError(w, fh.logger, err)
 		return
 	}
 
@@ -343,11 +338,11 @@ func (fh *FileHandler) HandleNotesUploadConfirmRequest(w http.ResponseWriter, r 
 		return
 	}
 
-	resp,err := fh.fileservice.NotesUploadConfirmRequest(ctx,req)
+	resp, err := fh.fileservice.NotesUploadConfirmRequest(ctx, req)
 	if err != nil {
-		utils.HandleError(w,fh.logger,err)
+		utils.HandleError(w, fh.logger, err)
 		return
 	}
 
-	utils.WriteJSON(w,http.StatusOK,utils.Envelope{"data":resp})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
 }
