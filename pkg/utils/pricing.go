@@ -11,25 +11,37 @@ var rates = map[string]float64{
 	"color":         5.00,
 }
 
-// CalculateFilePrice calculates the printing price based on
-// selected pages, copies, page layout, printing mode and side.
+// CalculateFilePrice calculates the printing price based on:
+//   - selected pages
+//   - number of copies
+//   - page layout
+//   - printing mode
+//   - printing side
 //
 // Pricing rules:
 //
-//	Monochromatic single-side = ₹2 per printed side
-//	Monochromatic double-side = ₹1 per side
-//	Color = ₹5 per side
+// MONOCHROMATIC:
 //
-// For double-side printing:
+//	Single-side:
+//	  Actual printed sides × ₹2
 //
-//	Every physical sheet is charged for BOTH sides,
-//	even when the second side is unused.
+//	Double-side:
+//	  Physical sheets × 2 sides × ₹1
 //
-//	Example:
-//	1 page  -> 1 sheet -> 2 sides charged
-//	2 pages -> 1 sheet -> 2 sides charged
-//	3 pages -> 2 sheets -> 4 sides charged
-//	4 pages -> 2 sheets -> 4 sides charged
+// COLOR:
+//
+//	Single-side:
+//	  Actual printed sides × ₹5
+//
+//	Double-side:
+//	  Actual printed sides × ₹5
+//
+// Important:
+// For monochromatic double-side printing, both sides of every
+// physical sheet are charged, even if the final back side is empty.
+//
+// For color double-side printing, only sides containing actual
+// printed pages are charged.
 func CalculateFilePrice(
 	numOfPages int,
 	pageRanges []string,
@@ -40,110 +52,192 @@ func CalculateFilePrice(
 ) (price float64, sheets int) {
 
 	// Count only selected pages.
-	selectedPages := countSelectedPages(pageRanges, numOfPages)
+	selectedPages := countSelectedPages(
+		pageRanges,
+		numOfPages,
+	)
 
-	// If no page range is provided, use all pages.
+	// If no page range is provided,
+	// use all pages.
 	if selectedPages == 0 {
 		selectedPages = numOfPages
 	}
 
 	// Protect against invalid input.
-	if selectedPages <= 0 || copies <= 0 || pageLayout <= 0 {
+	if selectedPages <= 0 ||
+		copies <= 0 ||
+		pageLayout <= 0 {
 		return 0, 0
 	}
 
-	// Calculate how many pages can be printed on one physical sheet.
+	// ------------------------------------------------------------
+	// Calculate pages that fit on one physical sheet.
+	// ------------------------------------------------------------
 	//
 	// Single-side:
-	//     pageLayout pages per sheet
+	//
+	//   pageLayout pages per sheet
 	//
 	// Double-side:
-	//     pageLayout pages on front
-	//     pageLayout pages on back
+	//
+	//   pageLayout pages on front
+	//   pageLayout pages on back
 	//
 	// Therefore:
-	//     pageLayout * 2 pages per sheet.
+	//
+	//   pageLayout * 2 pages per sheet
+	//
 	pagesPerSheet := pageLayout
 
 	if printingSide == "double_side" {
 		pagesPerSheet = pageLayout * 2
 	}
 
-	// Calculate physical sheets required for ONE copy.
+	// ------------------------------------------------------------
+	// Calculate physical sheets required per copy.
+	// ------------------------------------------------------------
+
 	sheetsPerCopy := int(
 		math.Ceil(
-			float64(selectedPages) / float64(pagesPerSheet),
+			float64(selectedPages) /
+				float64(pagesPerSheet),
 		),
 	)
 
-	// Total physical sheets across all copies.
+	// Total physical sheets for all copies.
 	sheets = sheetsPerCopy * copies
 
-	// Get price per side.
-	costPerSide := rateFor(printingMode, printingSide)
+	// ------------------------------------------------------------
+	// Get cost per printed side.
+	// ------------------------------------------------------------
+
+	costPerSide := rateFor(
+		printingMode,
+		printingSide,
+	)
 
 	var totalSides int
 
+	// ============================================================
+	// SINGLE-SIDE
+	// ============================================================
+
 	if printingSide == "single_side" {
 
-		// Single-side printing:
+		// Only one side of each physical sheet is used.
 		//
-		// Every physical sheet only uses one side.
+		// Example:
 		//
-		// Example with pageLayout = 1:
+		// pageLayout = 1
 		//
 		// 1 page -> 1 side
 		// 2 pages -> 2 sides
 		// 3 pages -> 3 sides
 		//
-		// Example with pageLayout = 2:
+		// pageLayout = 2
 		//
 		// 1 page -> 1 side
 		// 2 pages -> 1 side
 		// 3 pages -> 2 sides
-		// 4 pages -> 2 sides.
+		// 4 pages -> 2 sides
 		totalSides = int(
 			math.Ceil(
-				float64(selectedPages) / float64(pageLayout),
+				float64(selectedPages) /
+					float64(pageLayout),
 			),
 		)
 
+	} else if printingMode == "monochromatic" {
+
+		// ========================================================
+		// MONOCHROMATIC + DOUBLE-SIDE
+		// ========================================================
+		//
+		// Charge BOTH sides of every physical sheet.
+		//
+		// This accounts for physical paper consumption.
+		//
+		// pageLayout = 1:
+		//
+		// 1 page -> 1 sheet -> 2 sides -> ₹2
+		// 2 pages -> 1 sheet -> 2 sides -> ₹2
+		// 3 pages -> 2 sheets -> 4 sides -> ₹4
+		// 4 pages -> 2 sheets -> 4 sides -> ₹4
+		// 5 pages -> 3 sheets -> 6 sides -> ₹6
+		//
+		// pageLayout = 2:
+		//
+		// 1 page -> 1 sheet -> 2 sides -> ₹2
+		// 2 pages -> 1 sheet -> 2 sides -> ₹2
+		// 3 pages -> 1 sheet -> 2 sides -> ₹2
+		// 4 pages -> 1 sheet -> 2 sides -> ₹2
+		// 5 pages -> 2 sheets -> 4 sides -> ₹4
+		//
+		totalSides = sheetsPerCopy * 2
+
 	} else {
 
-		// Double-side printing:
+		// ========================================================
+		// COLOR + DOUBLE-SIDE
+		// ========================================================
 		//
-		// IMPORTANT:
-		// Every physical sheet consumes BOTH sides.
+		// Charge ONLY sides that actually contain printed pages.
 		//
-		// Therefore:
+		// Do NOT charge the unused back side of the final sheet.
 		//
-		// 1 sheet  = 2 charged sides
-		// 2 sheets = 4 charged sides
-		// 3 sheets = 6 charged sides
+		// pageLayout = 1:
 		//
-		// This also correctly handles partially filled sheets.
-		totalSides = sheetsPerCopy * 2
+		// 1 page -> 1 printed side -> ₹5
+		// 2 pages -> 2 printed sides -> ₹10
+		// 3 pages -> 3 printed sides -> ₹15
+		// 4 pages -> 4 printed sides -> ₹20
+		// 5 pages -> 5 printed sides -> ₹25
+		//
+		// pageLayout = 2:
+		//
+		// 1 page -> 1 printed side -> ₹5
+		// 2 pages -> 1 printed side -> ₹5
+		// 3 pages -> 2 printed sides -> ₹10
+		// 4 pages -> 2 printed sides -> ₹10
+		// 5 pages -> 3 printed sides -> ₹15
+		//
+		totalSides = int(
+			math.Ceil(
+				float64(selectedPages) /
+					float64(pageLayout),
+			),
+		)
 	}
 
+	// ------------------------------------------------------------
 	// Apply number of copies.
+	// ------------------------------------------------------------
+
 	totalSides *= copies
 
+	// ------------------------------------------------------------
 	// Calculate final price.
+	// ------------------------------------------------------------
+
 	price = float64(totalSides) * costPerSide
 
 	return price, sheets
 }
 
-// countSelectedPages calculates the number of unique selected pages
-// from page ranges.
+// countSelectedPages calculates the number of unique selected
+// pages from page ranges.
 //
-// Supported:
+// Supported formats:
 //
-//	"1"   -> page 1
-//	"1-3" -> pages 1, 2, 3
+//	"1"       -> page 1
+//	"1-3"     -> pages 1, 2, 3
+//	"5-7"     -> pages 5, 6, 7
 //
 // Duplicate pages are counted only once.
-func countSelectedPages(pageRanges []string, maxPages int) int {
+func countSelectedPages(
+	pageRanges []string,
+	maxPages int,
+) int {
 
 	selected := make(map[int]bool)
 
@@ -155,7 +249,10 @@ func countSelectedPages(pageRanges []string, maxPages int) int {
 			continue
 		}
 
-		// Range such as "1-3".
+		// --------------------------------------------------------
+		// Range such as "1-3"
+		// --------------------------------------------------------
+
 		if strings.Contains(r, "-") {
 
 			parts := strings.Split(r, "-")
@@ -190,7 +287,10 @@ func countSelectedPages(pageRanges []string, maxPages int) int {
 
 		} else {
 
-			// Single page such as "5".
+			// ----------------------------------------------------
+			// Single page such as "5"
+			// ----------------------------------------------------
+
 			page, err := strconv.Atoi(r)
 
 			if err != nil {
@@ -214,7 +314,7 @@ func rateFor(
 
 	// Special pricing:
 	//
-	// Monochromatic single-side = ₹2.
+	// Monochromatic single-side = ₹2 per side.
 	if printingSide == "single_side" &&
 		printingMode == "monochromatic" {
 
@@ -226,6 +326,6 @@ func rateFor(
 		return rate
 	}
 
-	// Default to monochromatic.
+	// Default to monochromatic pricing.
 	return rates["monochromatic"]
 }
