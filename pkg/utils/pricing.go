@@ -26,7 +26,8 @@ var rates = map[string]float64{
 //	  Actual printed sides × ₹2
 //
 //	Double-side:
-//	  Physical sheets × 2 sides × ₹1
+//	  One side printed on a sheet  = ₹2
+//	  Both sides printed on a sheet = ₹3
 //
 // COLOR:
 //
@@ -37,11 +38,13 @@ var rates = map[string]float64{
 //	  Actual printed sides × ₹5
 //
 // Important:
-// For monochromatic double-side printing, both sides of every
-// physical sheet are charged, even if the final back side is empty.
 //
-// For color double-side printing, only sides containing actual
-// printed pages are charged.
+// For monochromatic double-side printing:
+//   - If only one side of a physical sheet is printed, charge ₹2.
+//   - If both sides of a physical sheet are printed, charge ₹3.
+//
+// For color double-side printing:
+//   - Only sides containing actual printed pages are charged.
 func CalculateFilePrice(
 	numOfPages int,
 	pageRanges []string,
@@ -75,18 +78,16 @@ func CalculateFilePrice(
 	// ------------------------------------------------------------
 	//
 	// Single-side:
-	//
 	//   pageLayout pages per sheet
 	//
 	// Double-side:
-	//
 	//   pageLayout pages on front
 	//   pageLayout pages on back
 	//
 	// Therefore:
-	//
 	//   pageLayout * 2 pages per sheet
 	//
+
 	pagesPerSheet := pageLayout
 
 	if printingSide == "double_side" {
@@ -107,10 +108,7 @@ func CalculateFilePrice(
 	// Total physical sheets for all copies.
 	sheets = sheetsPerCopy * copies
 
-	// ------------------------------------------------------------
-	// Get cost per printed side.
-	// ------------------------------------------------------------
-
+	// Cost per printed side.
 	costPerSide := rateFor(
 		printingMode,
 		printingSide,
@@ -126,20 +124,19 @@ func CalculateFilePrice(
 
 		// Only one side of each physical sheet is used.
 		//
-		// Example:
-		//
-		// pageLayout = 1
+		// pageLayout = 1:
 		//
 		// 1 page -> 1 side
 		// 2 pages -> 2 sides
 		// 3 pages -> 3 sides
 		//
-		// pageLayout = 2
+		// pageLayout = 2:
 		//
 		// 1 page -> 1 side
 		// 2 pages -> 1 side
 		// 3 pages -> 2 sides
 		// 4 pages -> 2 sides
+
 		totalSides = int(
 			math.Ceil(
 				float64(selectedPages) /
@@ -153,27 +150,69 @@ func CalculateFilePrice(
 		// MONOCHROMATIC + DOUBLE-SIDE
 		// ========================================================
 		//
-		// Charge BOTH sides of every physical sheet.
+		// Pricing is based on each physical sheet:
 		//
-		// This accounts for physical paper consumption.
+		//   1 printed side  -> ₹2
+		//   2 printed sides -> ₹3
 		//
-		// pageLayout = 1:
+		// Example with pageLayout = 1:
 		//
-		// 1 page -> 1 sheet -> 2 sides -> ₹2
-		// 2 pages -> 1 sheet -> 2 sides -> ₹2
-		// 3 pages -> 2 sheets -> 4 sides -> ₹4
-		// 4 pages -> 2 sheets -> 4 sides -> ₹4
-		// 5 pages -> 3 sheets -> 6 sides -> ₹6
+		//   1 page:
+		//     1 sheet, 1 side  -> ₹2
 		//
-		// pageLayout = 2:
+		//   2 pages:
+		//     1 sheet, 2 sides -> ₹3
 		//
-		// 1 page -> 1 sheet -> 2 sides -> ₹2
-		// 2 pages -> 1 sheet -> 2 sides -> ₹2
-		// 3 pages -> 1 sheet -> 2 sides -> ₹2
-		// 4 pages -> 1 sheet -> 2 sides -> ₹2
-		// 5 pages -> 2 sheets -> 4 sides -> ₹4
+		//   3 pages:
+		//     sheet 1 -> 2 sides -> ₹3
+		//     sheet 2 -> 1 side  -> ₹2
+		//     total -> ₹5
 		//
-		totalSides = sheetsPerCopy * 2
+		//   4 pages:
+		//     sheet 1 -> 2 sides -> ₹3
+		//     sheet 2 -> 2 sides -> ₹3
+		//     total -> ₹6
+		//
+		//   5 pages:
+		//     sheet 1 -> 2 sides -> ₹3
+		//     sheet 2 -> 2 sides -> ₹3
+		//     sheet 3 -> 1 side  -> ₹2
+		//     total -> ₹8
+
+		fullSheets := selectedPages /
+			(pageLayout * 2)
+
+		remainingPages := selectedPages %
+			(pageLayout * 2)
+
+		// Every completely filled sheet has both
+		// front and back printed.
+		//
+		// Both sides = ₹3.
+		monoPrice := float64(fullSheets) * 3.00
+
+		if remainingPages > 0 {
+
+			// Remaining pages require one additional sheet.
+			//
+			// If remaining pages fit entirely on one side:
+			//   ₹2
+			//
+			// If remaining pages require both sides:
+			//   ₹3
+
+			if remainingPages <= pageLayout {
+				monoPrice += 2.00
+			} else {
+				monoPrice += 3.00
+			}
+		}
+
+		// Apply copies directly because monochromatic
+		// double-side pricing is sheet-based.
+		price = monoPrice * float64(copies)
+
+		return price, sheets
 
 	} else {
 
@@ -181,26 +220,29 @@ func CalculateFilePrice(
 		// COLOR + DOUBLE-SIDE
 		// ========================================================
 		//
-		// Charge ONLY sides that actually contain printed pages.
+		// Color is different from monochromatic.
 		//
-		// Do NOT charge the unused back side of the final sheet.
+		// Only sides that actually contain printed content
+		// are charged.
+		//
+		// The unused back side of the final physical sheet
+		// is NOT charged.
 		//
 		// pageLayout = 1:
 		//
-		// 1 page -> 1 printed side -> ₹5
-		// 2 pages -> 2 printed sides -> ₹10
-		// 3 pages -> 3 printed sides -> ₹15
-		// 4 pages -> 4 printed sides -> ₹20
-		// 5 pages -> 5 printed sides -> ₹25
+		//   1 page -> 1 printed side -> ₹5
+		//   2 pages -> 2 printed sides -> ₹10
+		//   3 pages -> 3 printed sides -> ₹15
+		//   4 pages -> 4 printed sides -> ₹20
 		//
 		// pageLayout = 2:
 		//
-		// 1 page -> 1 printed side -> ₹5
-		// 2 pages -> 1 printed side -> ₹5
-		// 3 pages -> 2 printed sides -> ₹10
-		// 4 pages -> 2 printed sides -> ₹10
-		// 5 pages -> 3 printed sides -> ₹15
-		//
+		//   1 page -> 1 printed side -> ₹5
+		//   2 pages -> 1 printed side -> ₹5
+		//   3 pages -> 2 printed sides -> ₹10
+		//   4 pages -> 2 printed sides -> ₹10
+		//   5 pages -> 3 printed sides -> ₹15
+
 		totalSides = int(
 			math.Ceil(
 				float64(selectedPages) /
@@ -229,9 +271,9 @@ func CalculateFilePrice(
 //
 // Supported formats:
 //
-//	"1"       -> page 1
-//	"1-3"     -> pages 1, 2, 3
-//	"5-7"     -> pages 5, 6, 7
+//	"1"   -> page 1
+//	"1-3" -> pages 1, 2, 3
+//	"5-7" -> pages 5, 6, 7
 //
 // Duplicate pages are counted only once.
 func countSelectedPages(
@@ -307,13 +349,28 @@ func countSelectedPages(
 }
 
 // rateFor returns the price per printed side.
+//
+// Special pricing:
+//
+//	Monochromatic single-side = ₹2
+//
+// Normal rates:
+//
+//	Monochromatic = ₹1
+//	Color = ₹5
+//
+// Note:
+// Monochromatic double-side pricing is handled separately because
+// it has sheet-based pricing:
+//
+//	1 side on a sheet  = ₹2
+//	2 sides on a sheet = ₹3
 func rateFor(
 	printingMode string,
 	printingSide string,
 ) float64 {
 
 	// Special pricing:
-	//
 	// Monochromatic single-side = ₹2 per side.
 	if printingSide == "single_side" &&
 		printingMode == "monochromatic" {
